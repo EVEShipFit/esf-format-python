@@ -61,6 +61,10 @@ def test_load_canonical():
     ]
 
 
+def test_load_str():
+    assert load("%esf/1\nRifter\n", CATALOG) == [EsfFit(RIFTER)]
+
+
 def test_mutaplasmid_rolls():
     entry = Entry(
         DAMAGE_CONTROL, mutaplasmid=DECAYED_DAMAGE_CONTROL_MUTAPLASMID, overrides={50: 31.5}
@@ -81,6 +85,7 @@ def test_binary_round_trip():
     "rifter",
     [
         fit(Entry(None)),
+        fit(Entry(AUTOCANNON, count=-1)),
         fit(Entry(999_999_999)),
         fit(Entry(AUTOCANNON, charge_count=10)),
         fit(Entry(DAMAGE_CONTROL, overrides={50: math.nan})),
@@ -90,6 +95,7 @@ def test_binary_round_trip():
     ],
     ids=[
         "empty-slot-without-rack",
+        "negative-count",
         "unknown-type",
         "charge-count-without-charge",
         "override-nan",

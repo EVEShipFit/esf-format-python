@@ -29,7 +29,7 @@ fit = EsfFit(
 
 text = esf_format.save([fit], catalog)  # canonical text
 data = esf_format.save_binary([fit], catalog)  # binary
-fits = esf_format.load(data, catalog)  # text or binary, as bytes
+fits = esf_format.load(data, catalog)  # text or binary
 ```
 
 `save()` and `save_binary()` take entries in any order, and check every rule

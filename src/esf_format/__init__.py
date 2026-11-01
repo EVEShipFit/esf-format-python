@@ -41,7 +41,9 @@ def is_text(data: bytes) -> bool:
     return data[:1] in (b"%", b" ")
 
 
-def _canonical(blocks: list[text.FitBlock], catalog: Catalog, given: list[EsfFit] | None = None):
+def _canonical(
+    blocks: list[text.FitBlock], catalog: Catalog, given: list[EsfFit] | None = None
+) -> list[CanonFit]:
     fits = resolve.resolve(blocks, catalog)
     if given is not None:
         source.verify(fits, given)
@@ -58,8 +60,10 @@ def _checked(fits: list[EsfFit], catalog: Catalog) -> list[CanonFit]:
         raise EsfError(f"{where[e.line - 1]}: {e.message}") from None
 
 
-def load(data: bytes, catalog: Catalog) -> list[EsfFit]:
+def load(data: bytes | str, catalog: Catalog) -> list[EsfFit]:
     """Read a text or binary document, in canonical form."""
+    if isinstance(data, str):
+        data = data.encode()
     if is_text(data):
         fits = _canonical(text.parse(data), catalog)
     else:
