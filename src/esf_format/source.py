@@ -23,8 +23,8 @@ def _type_name(catalog: Catalog, type_id: int, what: str) -> str:
 
 
 def _entry(e: Entry, catalog: Catalog) -> str:
-    for count in (e.count, e.charge_count):
-        if count is not None and count < 1:
+    for n in (e.count, e.charge_count):
+        if n is not None and n < 1:
             raise EsfError("a count must be at least 1")
     parts = []
     if e.count is not None:
