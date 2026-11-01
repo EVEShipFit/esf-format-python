@@ -36,4 +36,10 @@ jobs:
           uv run ruff format --check .
 
       - name: Run the test cases
-        run: uv run --project esf-format/tools esf-test -- .venv/bin/python tests/program.py
+        run: uv run --project esf-format/tools esf-test -- .venv/bin/coverage run tests/program.py
+
+      - name: Report coverage
+        run: |
+          uv run coverage combine
+          uv run coverage report
+          uv run coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"

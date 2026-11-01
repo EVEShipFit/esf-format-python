@@ -29,6 +29,8 @@ HOLDS = (
 )
 STORED = ("cargo", "bay", *HOLDS)
 
+UINT32_MAX = 0xFFFFFFFF
+
 _COUNT = re.compile(r"[0-9]+x")
 _QUOTED = re.compile(r'"((?:[^"]|"")*+)"')
 _HEADER = re.compile(r" *%([a-z][a-z0-9-]*)/([0-9]+) *")
@@ -115,6 +117,14 @@ class _Cursor:
             self.error(f"expected a space before {self.token()!r}")
         return True
 
+    def positive(self, digits: str, what: str) -> int:
+        digits = digits.lstrip("0")
+        if not digits:
+            self.error(f"{what} must be at least 1")
+        if len(digits) > 10 or int(digits) > UINT32_MAX:
+            self.error(f"{what} is too large")
+        return int(digits)
+
     def finish(self):
         if self.next_element():
             self.error(f"unexpected {self.token()!r}")
@@ -126,9 +136,7 @@ class _Cursor:
         self.i += len(token)
         if not self.next_element():
             self.error("a count must be followed by a type name")
-        if int(token[:-1]) == 0:
-            self.error("a count must be at least 1")
-        return int(token[:-1])
+        return self.positive(token[:-1], "a count")
 
     def quoted(self) -> str:
         match = _QUOTED.match(self.s, self.i)
@@ -171,9 +179,7 @@ class _Cursor:
         if index:
             if name not in RACKS:
                 self.error(f"unknown rack {name!r}")
-            if int(index) == 0:
-                self.error("slots are numbered from 1")
-            return name, int(index)
+            return name, self.positive(index, "a slot number")
         if name not in STORED and name not in RACKS:
             self.error(f"unknown location {name!r}")
         return name, None

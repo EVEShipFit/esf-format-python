@@ -8,7 +8,7 @@ from . import wire
 from .canonical import CanonFit, number, quote, quote_type
 from .catalog import Catalog
 from .resolve import Fit
-from .text import HOLDS, EsfError
+from .text import HOLDS, UINT32_MAX, EsfError
 
 STATES = (None, "off", "on", "heat")
 LOCATIONS = (None, "high", "mid", "low", "rig", "sub", "svc", "cargo", "bay", *HOLDS)
@@ -42,6 +42,8 @@ def _encode_entry(line) -> bytes:
     if line.type is not None:
         out += wire.uint(1, line.type.id)
     if line.count is not None:
+        if line.count > UINT32_MAX:
+            raise EsfError(f"binary: a count of {line.count} is too large")
         out += wire.uint(2, line.count)
     if line.fit_name:
         out += wire.record(3, line.fit_name.encode())
@@ -79,7 +81,7 @@ def encode(fits: list[CanonFit]) -> bytes:
 
 
 def _uint32(value: int, what: str) -> int:
-    if value > 0xFFFFFFFF:
+    if value > UINT32_MAX:
         raise EsfError(f"binary: {what} is out of range")
     return value
 

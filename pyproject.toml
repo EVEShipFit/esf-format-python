@@ -18,7 +18,10 @@ Homepage = "https://github.com/EVEShipFit/esf-format-python"
 Specification = "https://github.com/EVEShipFit/esf-format"
 
 [dependency-groups]
-dev = ["ruff"]
+dev = [
+    "coverage>=7.17.0",
+    "ruff",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -26,3 +29,11 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 100
+
+[tool.coverage.run]
+source = ["esf_format"]
+parallel = true
+branch = true
+
+[tool.coverage.report]
+show_missing = true
