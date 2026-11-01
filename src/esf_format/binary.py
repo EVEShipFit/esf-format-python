@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from . import wire
 from .canonical import CanonFit, number, quote, quote_type
 from .catalog import Catalog
-from .resolve import Fit
+from .resolve import EmptySlot, Fit
 from .text import HOLDS, UINT32_MAX, EsfError
 
 STATES = (None, "off", "on", "heat")
@@ -247,6 +247,8 @@ def verify(fits: list[Fit], doc: list[BinaryFit]):
         same(fit.hull, f.hull, "hull")
         same(fit.mode, f.tactical_mode, "tactical mode")
         for item, e in zip(fit.items, f.entries):
+            if isinstance(item, EmptySlot):
+                continue
             same(item.type, e.type, "type")
             same(item.charge, e.charge, "charge")
             muta = item.mutaplasmid.type if item.mutaplasmid else None

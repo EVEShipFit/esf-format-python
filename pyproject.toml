@@ -20,6 +20,7 @@ Specification = "https://github.com/EVEShipFit/esf-format"
 [dependency-groups]
 dev = [
     "coverage>=7.17.0",
+    "mypy>=2.4.1",
     "ruff",
 ]
 

@@ -6,7 +6,7 @@ from decimal import Decimal
 from . import catalog as cat
 from .catalog import AttributeRecord, Catalog, MutaplasmidRecord, TypeRecord
 from .names import fold, shortest_unique
-from .resolve import DEFAULT_PLACES, PLUGGED, Fit, Item, default_place, mode_name
+from .resolve import DEFAULT_PLACES, PLUGGED, EmptySlot, Fit, Item, default_place, mode_name
 from .text import HOLDS, RACKS, SIGILS, is_count
 
 GROUPS = (*RACKS, "drones", "fighters", "cargo", *HOLDS, *PLUGGED)
@@ -129,7 +129,7 @@ def _line(item: Item, fit: Fit, catalog: Catalog) -> CanonLine:
         out.mutaplasmid_name = shortest_unique(own, others)
         for attr_id, base in item.mutaplasmid.rolls:
             if attr_id not in overrides:
-                overrides[attr_id] = (catalog.attribute_by_id(attr_id), base)
+                overrides[attr_id] = (cat.attribute_of(catalog, attr_id), base)
     out.overrides = sorted(overrides.values(), key=lambda o: (fold(o[0].name), o[0].name))
 
     if line.state is not None and line.state != _default_state(item):
@@ -161,11 +161,11 @@ def _collapse(lines: list[tuple[bool, CanonLine]]) -> list[CanonLine]:
 
 def _rack(fit: Fit, rack: str, catalog: Catalog) -> list[CanonLine]:
     runs = list(fit.racks.get(rack, []))
-    while runs and (runs[-1].item is None or runs[-1].item.type is None):
+    while runs and runs[-1].item is None:
         runs.pop()
     lines = []
     for run in runs:
-        if run.item is None or run.item.type is None:
+        if run.item is None:
             line = CanonLine(None, location=rack)
         else:
             line = _line(run.item, fit, catalog)
@@ -206,7 +206,7 @@ def _fighters(items: list[Item], fit: Fit, catalog: Catalog) -> list[CanonLine]:
 def canonical_fit(fit: Fit, catalog: Catalog) -> CanonFit:
     groups: dict[str, list[Item]] = {}
     for item in fit.items:
-        if item.place in RACKS:
+        if isinstance(item, EmptySlot) or item.place in RACKS:
             continue
         group = item.place
         if group == "bay":
@@ -225,7 +225,7 @@ def canonical_fit(fit: Fit, catalog: Catalog) -> CanonFit:
             chunks.append(chunk)
 
     mode_text = None
-    if fit.mode is not None:
+    if fit.hull is not None and fit.mode is not None:
         others = [mode_name(fit.hull, m) for m in cat.modes_of(catalog, fit.hull)]
         own = mode_name(fit.hull, fit.mode)
         others.remove(own)

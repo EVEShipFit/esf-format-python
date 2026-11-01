@@ -34,6 +34,7 @@ jobs:
         run: |
           uv run ruff check .
           uv run ruff format --check .
+          uv run mypy src
 
       - name: Run the test cases
         run: uv run --project esf-format/tools esf-test -- .venv/bin/coverage run tests/program.py

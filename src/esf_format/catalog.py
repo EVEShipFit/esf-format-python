@@ -85,6 +85,13 @@ def mutaplasmids_of(catalog: Catalog, base: TypeRecord) -> Sequence[MutaplasmidR
     return _method(catalog, "mutaplasmids")(base.id)
 
 
+def attribute_of(catalog: Catalog, attribute_id: int) -> AttributeRecord:
+    attribute = catalog.attribute_by_id(attribute_id)
+    if attribute is None:
+        raise LookupError(f"the catalog has no attribute {attribute_id}")
+    return attribute
+
+
 def full_load(item: TypeRecord, charge: TypeRecord) -> int | None:
     """How many charges fit in an item (§6.5)."""
     if item.capacity <= 0 or charge.volume <= 0:

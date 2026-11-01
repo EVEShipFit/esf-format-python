@@ -2,13 +2,14 @@
 
 import bisect
 import math
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
-from typing import NamedTuple
+from typing import NamedTuple, TypeVar
 
 from . import catalog as cat
 from .catalog import AttributeRecord, Catalog, Kind, MutaplasmidRecord, TypeRecord
 from .names import fold, is_word_prefix
-from .text import RACKS, STORED, EsfError, FitBlock, Line
+from .text import RACKS, STORED, EmptyLine, EsfError, FitBlock, ItemLine
 
 PLUGGED = ("implants", "boosters")
 DEFAULT_PLACES = {
@@ -20,10 +21,22 @@ DEFAULT_PLACES = {
 }
 
 
+T = TypeVar("T")
+
+
+@dataclass
+class EmptySlot:
+    line: EmptyLine
+
+    @property
+    def place(self) -> str:
+        return self.line.rack
+
+
 @dataclass
 class Item:
-    line: Line
-    type: TypeRecord | None
+    line: ItemLine
+    type: TypeRecord
     place: str
     charge: TypeRecord | None = None
     mutaplasmid: MutaplasmidRecord | None = None
@@ -49,7 +62,7 @@ class Fit:
     hull: TypeRecord | None
     mode: TypeRecord | None
     cargo_only: bool
-    items: list[Item] = field(default_factory=list)
+    items: list[Item | EmptySlot] = field(default_factory=list)
     racks: dict[str, list[Run]] = field(default_factory=dict)
 
     @property
@@ -75,7 +88,7 @@ def _type(catalog: Catalog, name: str, line: int) -> TypeRecord:
     return t
 
 
-def _pick(candidates: list, given: str, what: str, line: int, name=lambda c: c.name):
+def _pick(candidates: list[T], given: str, what: str, line: int, name: Callable[[T], str]) -> T:
     if not candidates:
         raise EsfError(f"no {what} matches {given!r}", line)
     if len(candidates) > 1:
@@ -102,19 +115,20 @@ def _resolve_hull(block: FitBlock, catalog: Catalog) -> Fit:
             for m in modes
             if is_word_prefix(block.mode, m.name) or is_word_prefix(block.mode, mode_name(hull, m))
         ]
-        mode = _pick(matches, block.mode, f"tactical mode of {hull.name!r}", block.hull_line)
+        what = f"tactical mode of {hull.name!r}"
+        mode = _pick(matches, block.mode, what, block.hull_line, lambda m: m.name)
 
     return Fit(block, hull, mode, hull.kind == Kind.CONTAINER)
 
 
 def _resolve_line(
-    line: Line, fit: Fit, named: dict[tuple[int, str], list[Fit]], catalog: Catalog
-) -> Item:
+    line: EmptyLine | ItemLine, fit: Fit, named: dict[tuple[int, str], list[Fit]], catalog: Catalog
+) -> Item | EmptySlot:
     n = line.number
-    if line.kind == "empty":
+    if isinstance(line, EmptyLine):
         if fit.cargo_only:
             raise EsfError("a fit without a ship has no slots to keep empty", n)
-        return Item(line, None, line.location)
+        return EmptySlot(line)
 
     t = _type(catalog, line.name, n)
     kind = t.kind
@@ -123,7 +137,7 @@ def _resolve_line(
 
     item = Item(line, t, default_place(kind, fit.cargo_only))
 
-    if line.kind == "reference":
+    if line.fit_name is not None:
         if kind not in (Kind.HULL, Kind.CONTAINER):
             raise EsfError(f"{t.name!r} cannot take a fit name", n)
         matches = named.get((t.id, fold(line.fit_name)), [])
@@ -132,15 +146,11 @@ def _resolve_line(
             raise EsfError(f"{what} matches {t.name} {line.fit_name!r}", n)
         item.reference = matches[0]
 
-    if line.index is not None:
-        if fit.cargo_only:
-            raise EsfError("a fit without a ship stores everything in cargo", n)
-        if DEFAULT_PLACES.get(kind) != line.location:
-            raise EsfError(f"{t.name!r} does not go in the {line.location} rack", n)
-        item.place = line.location
-    elif line.location is not None:
+    if line.location is not None:
         if fit.cargo_only and line.location != "cargo":
             raise EsfError("a fit without a ship stores everything in cargo", n)
+        if line.index is not None and DEFAULT_PLACES.get(kind) != line.location:
+            raise EsfError(f"{t.name!r} does not go in the {line.location} rack", n)
         if line.location == "bay" and kind not in (Kind.DRONE, Kind.FIGHTER):
             raise EsfError("@bay is only for drones and fighters", n)
         item.place = line.location
@@ -161,9 +171,9 @@ def _resolve_line(
 
     if line.mutaplasmid is not None:
         candidates = cat.mutaplasmids_of(catalog, t)
-        matches = [m for m in candidates if is_word_prefix(line.mutaplasmid, m.type.name)]
+        mutaplasmids = [m for m in candidates if is_word_prefix(line.mutaplasmid, m.type.name)]
         item.mutaplasmid = _pick(
-            matches, line.mutaplasmid, f"mutaplasmid for {t.name!r}", n, lambda m: m.type.name
+            mutaplasmids, line.mutaplasmid, f"mutaplasmid for {t.name!r}", n, lambda m: m.type.name
         )
 
     seen = set()
@@ -182,29 +192,41 @@ def _resolve_line(
     return item
 
 
+def _references(fit: Fit) -> Iterator[tuple[Item, Fit]]:
+    """Each item that carries a fit, with that fit."""
+    for item in fit.items:
+        if isinstance(item, Item) and item.reference is not None:
+            yield item, item.reference
+
+
 def _check_cycles(fits: list[Fit]):
     """A fit cannot contain itself, directly or through other fits."""
     done: set[Fit] = set()
     for start in fits:
         path = {start}
-        stack = [(start, iter(start.items))]
+        stack = [(start, _references(start))]
         while stack:
             fit, items = stack[-1]
-            item = next((i for i in items if i.reference is not None), None)
-            if item is None:
+            item, ref = next(items, (None, None))
+            if item is None or ref is None:
                 stack.pop()
                 path.discard(fit)
                 done.add(fit)
-            elif item.reference in path:
+                continue
+            if ref in path:
                 raise EsfError("a fit cannot contain itself", item.line.number)
-            elif item.reference not in done:
-                path.add(item.reference)
-                stack.append((item.reference, iter(item.reference.items)))
+            if ref not in done:
+                path.add(ref)
+                stack.append((ref, _references(ref)))
 
 
-def _layout(items: list[Item]) -> list[Run]:
+def _filled(item: Item | EmptySlot) -> Item | None:
+    return item if isinstance(item, Item) else None
+
+
+def _layout(items: list[Item | EmptySlot]) -> list[Run]:
     """Assign slots in one rack (§6.3)."""
-    pinned: dict[int, Item] = {}
+    pinned: dict[int, Item | EmptySlot] = {}
     for item in items:
         index = item.line.index
         if index is None:
@@ -214,7 +236,7 @@ def _layout(items: list[Item]) -> list[Run]:
         pinned[index] = item
 
     pins = sorted(pinned)
-    runs = [Run(index, 1, item) for index, item in pinned.items()]
+    runs = [Run(index, 1, _filled(item)) for index, item in pinned.items()]
     pos = 1
     for item in items:
         if item.line.index is not None:
@@ -226,19 +248,19 @@ def _layout(items: list[Item]) -> list[Run]:
             at = bisect.bisect_left(pins, pos)
             room = pins[at] - pos if at < len(pins) else remaining
             take = min(remaining, room)
-            runs.append(Run(pos, take, item))
+            runs.append(Run(pos, take, _filled(item)))
             pos += take
             remaining -= take
     runs.sort(key=lambda r: r.start)
 
-    filled = []
+    gapless = []
     pos = 1
-    for start, length, item in runs:
-        if start > pos:
-            filled.append(Run(pos, start - pos, None))
-        filled.append(Run(start, length, item))
-        pos = start + length
-    return filled
+    for run in runs:
+        if run.start > pos:
+            gapless.append(Run(pos, run.start - pos, None))
+        gapless.append(run)
+        pos = run.start + run.length
+    return gapless
 
 
 def resolve(blocks: list[FitBlock], catalog: Catalog) -> list[Fit]:
@@ -251,7 +273,7 @@ def resolve(blocks: list[FitBlock], catalog: Catalog) -> list[Fit]:
         fit.items = [_resolve_line(line, fit, named, catalog) for line in fit.block.lines]
         plugged = set()
         for item in fit.items:
-            if item.place not in PLUGGED:
+            if not isinstance(item, Item) or item.place not in PLUGGED:
                 continue
             if item.type.id in plugged:
                 raise EsfError(f"{item.type.name!r} is plugged in twice", item.line.number)
