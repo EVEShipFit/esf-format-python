@@ -2,6 +2,7 @@
 
 import re
 from dataclasses import dataclass, field
+from typing import NoReturn
 
 SIGILS = frozenset(':+{!@/"')
 RACKS = ("sub", "high", "mid", "low", "rig", "svc")
@@ -84,7 +85,7 @@ class _Cursor:
         self.s = text
         self.i = 0
 
-    def error(self, message: str):
+    def error(self, message: str) -> NoReturn:
         raise EsfError(message, self.number)
 
     def peek(self) -> str:

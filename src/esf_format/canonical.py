@@ -101,7 +101,7 @@ def number(value: float) -> str:
 
 
 def _default_state(item: Item) -> str | None:
-    """The state token that canonical form leaves out; None means running."""
+    """The state an item has when its line names none; None is active."""
     if item.place in PLUGGED or not item.type.active:
         return "on"
     return None
@@ -161,15 +161,15 @@ def _collapse(lines: list[tuple[bool, CanonLine]]) -> list[CanonLine]:
 
 def _rack(fit: Fit, rack: str, catalog: Catalog) -> list[CanonLine]:
     runs = list(fit.racks.get(rack, []))
-    while runs and (runs[-1][2] is None or runs[-1][2].type is None):
+    while runs and (runs[-1].item is None or runs[-1].item.type is None):
         runs.pop()
     lines = []
-    for _, length, item in runs:
-        if item is None or item.type is None:
+    for run in runs:
+        if run.item is None or run.item.type is None:
             line = CanonLine(None, location=rack)
         else:
-            line = _line(item, fit, catalog)
-        line.count = length
+            line = _line(run.item, fit, catalog)
+        line.count = run.length
         lines.append((True, line))
     return _collapse(lines)
 

@@ -3,6 +3,7 @@
 import bisect
 import math
 from dataclasses import dataclass, field
+from typing import NamedTuple
 
 from . import catalog as cat
 from .catalog import AttributeRecord, Catalog, Kind, MutaplasmidRecord, TypeRecord
@@ -34,6 +35,14 @@ class Item:
         return self.place in STORED
 
 
+class Run(NamedTuple):
+    """Consecutive slots of a rack holding the same item; None for empty slots."""
+
+    start: int
+    length: int
+    item: Item | None
+
+
 @dataclass(eq=False)
 class Fit:
     block: FitBlock
@@ -41,7 +50,7 @@ class Fit:
     mode: TypeRecord | None
     cargo_only: bool
     items: list[Item] = field(default_factory=list)
-    racks: dict[str, list[tuple[int, int, Item | None]]] = field(default_factory=dict)
+    racks: dict[str, list[Run]] = field(default_factory=dict)
 
     @property
     def name(self) -> str | None:
@@ -54,12 +63,12 @@ def default_place(kind: Kind, cargo_only: bool) -> str:
     return DEFAULT_PLACES.get(kind, "cargo")
 
 
-def mode_name(hull, mode) -> str:
+def mode_name(hull: TypeRecord, mode: TypeRecord) -> str:
     """A tactical mode's name without the hull's name."""
     return mode.name[len(hull.name) :].lstrip(" ")
 
 
-def _type(catalog: Catalog, name: str, line: int):
+def _type(catalog: Catalog, name: str, line: int) -> TypeRecord:
     t = catalog.type(fold(name))
     if t is None:
         raise EsfError(f"unknown type {name!r}", line)
@@ -98,7 +107,9 @@ def _resolve_hull(block: FitBlock, catalog: Catalog) -> Fit:
     return Fit(block, hull, mode, hull.kind == Kind.CONTAINER)
 
 
-def _resolve_line(line: Line, fit: Fit, fits: list[Fit], catalog: Catalog) -> Item:
+def _resolve_line(
+    line: Line, fit: Fit, named: dict[tuple[int, str], list[Fit]], catalog: Catalog
+) -> Item:
     n = line.number
     if line.kind == "empty":
         if fit.cargo_only:
@@ -115,14 +126,7 @@ def _resolve_line(line: Line, fit: Fit, fits: list[Fit], catalog: Catalog) -> It
     if line.kind == "reference":
         if kind not in (Kind.HULL, Kind.CONTAINER):
             raise EsfError(f"{t.name!r} cannot take a fit name", n)
-        matches = [
-            f
-            for f in fits
-            if f.hull is not None
-            and f.hull.id == t.id
-            and f.name is not None
-            and fold(f.name) == fold(line.fit_name)
-        ]
+        matches = named.get((t.id, fold(line.fit_name)), [])
         if len(matches) != 1:
             what = "no fit" if not matches else "more than one fit"
             raise EsfError(f"{what} matches {t.name} {line.fit_name!r}", n)
@@ -198,8 +202,8 @@ def _check_cycles(fits: list[Fit]):
                 stack.append((item.reference, iter(item.reference.items)))
 
 
-def _layout(items: list[Item]) -> list[tuple[int, int, Item | None]]:
-    """Assign slots in one rack (SPEC §6.3): runs of (first index, length, item)."""
+def _layout(items: list[Item]) -> list[Run]:
+    """Assign slots in one rack (§6.3)."""
     pinned: dict[int, Item] = {}
     for item in items:
         index = item.line.index
@@ -210,7 +214,7 @@ def _layout(items: list[Item]) -> list[tuple[int, int, Item | None]]:
         pinned[index] = item
 
     pins = sorted(pinned)
-    runs = [(index, 1, item) for index, item in pinned.items()]
+    runs = [Run(index, 1, item) for index, item in pinned.items()]
     pos = 1
     for item in items:
         if item.line.index is not None:
@@ -222,25 +226,29 @@ def _layout(items: list[Item]) -> list[tuple[int, int, Item | None]]:
             at = bisect.bisect_left(pins, pos)
             room = pins[at] - pos if at < len(pins) else remaining
             take = min(remaining, room)
-            runs.append((pos, take, item))
+            runs.append(Run(pos, take, item))
             pos += take
             remaining -= take
-    runs.sort(key=lambda r: r[0])
+    runs.sort(key=lambda r: r.start)
 
     filled = []
     pos = 1
     for start, length, item in runs:
         if start > pos:
-            filled.append((pos, start - pos, None))
-        filled.append((start, length, item))
+            filled.append(Run(pos, start - pos, None))
+        filled.append(Run(start, length, item))
         pos = start + length
     return filled
 
 
 def resolve(blocks: list[FitBlock], catalog: Catalog) -> list[Fit]:
     fits = [_resolve_hull(block, catalog) for block in blocks]
+    named: dict[tuple[int, str], list[Fit]] = {}
     for fit in fits:
-        fit.items = [_resolve_line(line, fit, fits, catalog) for line in fit.block.lines]
+        if fit.hull is not None and fit.name is not None:
+            named.setdefault((fit.hull.id, fold(fit.name)), []).append(fit)
+    for fit in fits:
+        fit.items = [_resolve_line(line, fit, named, catalog) for line in fit.block.lines]
         plugged = set()
         for item in fit.items:
             if item.place not in PLUGGED:

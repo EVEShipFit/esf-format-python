@@ -11,6 +11,8 @@ def _fold_char(c: str) -> str:
 
 def fold(s: str) -> str:
     """Unicode simple case folding."""
+    if s.isascii():
+        return s.lower()
     return "".join(_fold_char(c) for c in s)
 
 
