@@ -4,30 +4,12 @@ import re
 from dataclasses import dataclass, field
 from typing import NoReturn
 
+from .model import Location
+
 SIGILS = frozenset(':+{!@/"')
 RACKS = ("sub", "high", "mid", "low", "rig", "svc")
-HOLDS = (
-    "ammo",
-    "booster",
-    "command",
-    "corpse",
-    "depot",
-    "expedition",
-    "fleet",
-    "frigate",
-    "fuel",
-    "gas",
-    "ice",
-    "infrastructure",
-    "maintenance",
-    "mineral",
-    "mining",
-    "moon",
-    "planetary",
-    "quafe",
-    "subsystem",
-)
-STORED = ("cargo", "bay", *HOLDS)
+STORED = tuple(str(location) for location in Location if location not in RACKS)
+HOLDS = tuple(location for location in STORED if location not in ("cargo", "bay"))
 
 UINT32_MAX = 0xFFFFFFFF
 

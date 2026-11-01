@@ -39,6 +39,9 @@ jobs:
       - name: Run the test cases
         run: uv run --project esf-format/tools esf-test -- .venv/bin/coverage run tests/program.py
 
+      - name: Run the unit tests
+        run: uv run coverage run -m pytest
+
       - name: Report coverage
         run: |
           uv run coverage combine

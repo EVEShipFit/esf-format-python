@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from . import catalog as cat
 from .catalog import AttributeRecord, Catalog, MutaplasmidRecord, TypeRecord
+from .model import Entry, EsfFit, Location, State
 from .names import fold, shortest_unique
 from .resolve import DEFAULT_PLACES, PLUGGED, EmptySlot, Fit, Item, default_place, mode_name
 from .text import HOLDS, RACKS, SIGILS, is_count
@@ -236,3 +237,29 @@ def canonical_fit(fit: Fit, catalog: Catalog) -> CanonFit:
 
 def render(fits: list[CanonFit]) -> str:
     return "\n".join(fit.text() for fit in fits)
+
+
+def _id(record: TypeRecord | None) -> int | None:
+    return None if record is None else record.id
+
+
+def to_model(fit: CanonFit) -> EsfFit:
+    return EsfFit(
+        _id(fit.hull),
+        fit.name,
+        _id(fit.mode),
+        [
+            Entry(
+                _id(line.type),
+                line.count,
+                line.fit_name,
+                _id(line.charge),
+                line.charge_count,
+                _id(line.mutaplasmid.type) if line.mutaplasmid else None,
+                {a.id: v for a, v in line.overrides},
+                State(line.state) if line.state else None,
+                Location(line.location) if line.location else None,
+            )
+            for line in fit.lines
+        ],
+    )

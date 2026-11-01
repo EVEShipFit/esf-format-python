@@ -1,6 +1,6 @@
 """Read and write esf/1 (https://github.com/EVEShipFit/esf-format)."""
 
-from . import binary, canonical, resolve, text
+from . import binary, canonical, resolve, source, text
 from .canonical import CanonFit
 from .catalog import (
     AttributeRecord,
@@ -11,24 +11,28 @@ from .catalog import (
     MutaplasmidRecord,
     TypeRecord,
 )
+from .model import Entry, EsfFit, Location, State
 from .names import fold
 from .text import EsfError
 
 __all__ = [
     "AttributeRecord",
-    "CanonFit",
     "Catalog",
+    "Entry",
     "EsfError",
+    "EsfFit",
     "Kind",
+    "Location",
     "ModeCatalog",
     "MutaplasmidCatalog",
     "MutaplasmidRecord",
+    "State",
     "TypeRecord",
     "fold",
     "is_text",
-    "read",
-    "to_binary",
-    "to_text",
+    "load",
+    "save",
+    "save_binary",
 ]
 
 
@@ -37,22 +41,37 @@ def is_text(data: bytes) -> bool:
     return data[:1] in (b"%", b" ")
 
 
-def read(data: bytes, catalog: Catalog) -> list[CanonFit]:
-    """Validate a text or binary document, and return its canonical form."""
-    if is_text(data):
-        fits = resolve.resolve(text.parse(data), catalog)
-    else:
-        source, doc = binary.decode(data, catalog)
-        fits = resolve.resolve(text.parse(source), catalog)
-        binary.verify(fits, doc)
+def _canonical(blocks: list[text.FitBlock], catalog: Catalog, given: list[EsfFit] | None = None):
+    fits = resolve.resolve(blocks, catalog)
+    if given is not None:
+        source.verify(fits, given)
     return [canonical.canonical_fit(f, catalog) for f in fits]
 
 
-def to_text(fits: list[CanonFit]) -> str:
-    """The canonical text form (§8)."""
-    return canonical.render(fits)
+def _checked(fits: list[EsfFit], catalog: Catalog) -> list[CanonFit]:
+    data, where = source.source(fits, catalog)
+    try:
+        return _canonical(text.parse(data), catalog, fits)
+    except EsfError as e:
+        if e.line is None:
+            raise
+        raise EsfError(f"{where[e.line - 1]}: {e.message}") from None
 
 
-def to_binary(fits: list[CanonFit]) -> bytes:
-    """The binary form (§10)."""
-    return binary.encode(fits)
+def load(data: bytes, catalog: Catalog) -> list[EsfFit]:
+    """Read a text or binary document, in canonical form."""
+    if is_text(data):
+        fits = _canonical(text.parse(data), catalog)
+    else:
+        fits = _checked(binary.decode(data), catalog)
+    return [canonical.to_model(f) for f in fits]
+
+
+def save(fits: list[EsfFit], catalog: Catalog) -> str:
+    """Write fits as canonical text (§8)."""
+    return canonical.render(_checked(fits, catalog))
+
+
+def save_binary(fits: list[EsfFit], catalog: Catalog) -> bytes:
+    """Write fits in the binary form (§10)."""
+    return binary.encode([canonical.to_model(f) for f in _checked(fits, catalog)])
