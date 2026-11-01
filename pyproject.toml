@@ -1,0 +1,28 @@
+[project]
+name = "esf-format"
+version = "0.1.0"
+description = "Read and write esf/1, the plain-text format for EVE Online ship fits"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = []
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Games/Entertainment",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/EVEShipFit/esf-format-python"
+Specification = "https://github.com/EVEShipFit/esf-format"
+
+[dependency-groups]
+dev = ["ruff"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
