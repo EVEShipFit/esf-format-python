@@ -164,7 +164,7 @@ def _collapse(lines: list[tuple[bool, CanonLine]]) -> list[CanonLine]:
             prev = out[-1][1]
             prev.count = (prev.count or 1) + (line.count or 1)
             if prev.count > UINT32_MAX:
-                raise EsfError(f"lines merge into a count of {prev.count}, which is too large")
+                raise EsfError(f"lines collapse into a count of {prev.count}, which is too large")
             continue
         out.append((repeatable, line))
     for _, line in out:
@@ -217,6 +217,11 @@ def _fighters(items: list[Item], fit: Fit, catalog: Catalog) -> list[CanonLine]:
     return lines + _sorted([i for i in items if i.place == Location.BAY], fit, catalog)
 
 
+def _drones(items: list[Item], fit: Fit, catalog: Catalog) -> list[CanonLine]:
+    space = _sorted([i for i in items if i.place == DRONES], fit, catalog)
+    return space + _sorted([i for i in items if i.place == Location.BAY], fit, catalog)
+
+
 def canonical_fit(fit: Fit, catalog: Catalog) -> CanonFit:
     groups: dict[str, list[Item]] = {}
     for item in fit.items:
@@ -231,6 +236,8 @@ def canonical_fit(fit: Fit, catalog: Catalog) -> CanonFit:
     for group in GROUPS:
         if group in RACKS:
             chunk = _rack(fit, group, catalog)
+        elif group == DRONES:
+            chunk = _drones(groups.get(group, []), fit, catalog)
         elif group == FIGHTERS:
             chunk = _fighters(groups.get(group, []), fit, catalog)
         else:
