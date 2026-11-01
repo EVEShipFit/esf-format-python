@@ -198,3 +198,15 @@ def test_base64url():
 def test_is_text():
     assert is_text("%esf/1\n") and is_text(b"%esf/1\n")
     assert not is_text(b"\x0a\x02")
+
+
+class CatalogWithoutRollAttributes(MinimalCatalog):
+    def __init__(self, catalog: JsonCatalog):
+        super().__init__(catalog)
+        self.mutaplasmids = catalog.mutaplasmids
+        self.attribute_by_id = lambda attribute_id: None
+
+
+def test_catalog_missing_roll_attribute():
+    with pytest.raises(LookupError, match="no attribute"):
+        load("%esf/1\nRifter\nDamage Control II +Decayed\n", CatalogWithoutRollAttributes(CATALOG))

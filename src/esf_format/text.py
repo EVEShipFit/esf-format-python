@@ -310,8 +310,6 @@ def parse(data: bytes) -> list[FitBlock]:
     lines = text.split("\n")
     if lines[-1] == "":
         lines.pop()
-    if not lines:
-        raise EsfError("the document is empty")
 
     fits: list[FitBlock] = []
     current: FitBlock | None = None
