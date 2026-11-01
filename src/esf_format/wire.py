@@ -1,8 +1,10 @@
 """The Protocol Buffers wire format."""
 
 import struct
+from collections.abc import Iterator
+from typing import Any
 
-from .text import EsfError
+from .errors import EsfError
 
 VARINT, I64, LEN, SGROUP, EGROUP, I32 = range(6)
 U64 = (1 << 64) - 1
@@ -68,7 +70,7 @@ class Reader:
             raise EsfError(f"binary: not valid Protocol Buffers (bad key {k})")
         return field, wire
 
-    def value(self, field: int, wire: int):
+    def value(self, field: int, wire: int) -> int | bytes | None:
         """Read one value: an int for VARINT, bytes otherwise, None for a group."""
         if wire == VARINT:
             return self.varint()
@@ -83,7 +85,7 @@ class Reader:
             return None
         raise EsfError("binary: not valid Protocol Buffers (unmatched end group)")
 
-    def skip_group(self, field: int):
+    def skip_group(self, field: int) -> None:
         open_groups = [field]
         while open_groups:
             inner, inner_wire = self.key()
@@ -96,7 +98,7 @@ class Reader:
                 self.value(inner, inner_wire)
 
 
-def fields(data: bytes):
+def fields(data: bytes) -> Iterator[tuple[int, int, Any]]:
     """The (field, wire type, value) records of one message."""
     reader = Reader(data)
     while not reader.done():

@@ -70,19 +70,14 @@ class MutaplasmidCatalog(Catalog, Protocol):
     def mutaplasmids(self, type_id: int) -> Sequence[MutaplasmidRecord]: ...
 
 
-def _method(catalog: Catalog, name: str):
-    method = getattr(catalog, name, None)
-    if method is None:
-        raise NotImplementedError(f"the catalog has no {name}()")
-    return method
-
-
 def modes_of(catalog: Catalog, hull: TypeRecord) -> Sequence[TypeRecord]:
-    return _method(catalog, "modes")(hull.id)
+    modes = getattr(catalog, "modes", None)
+    return () if modes is None else modes(hull.id)
 
 
 def mutaplasmids_of(catalog: Catalog, base: TypeRecord) -> Sequence[MutaplasmidRecord]:
-    return _method(catalog, "mutaplasmids")(base.id)
+    mutaplasmids = getattr(catalog, "mutaplasmids", None)
+    return () if mutaplasmids is None else mutaplasmids(base.id)
 
 
 def attribute_of(catalog: Catalog, attribute_id: int) -> AttributeRecord:

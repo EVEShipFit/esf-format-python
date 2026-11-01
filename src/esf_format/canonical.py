@@ -5,12 +5,23 @@ from decimal import Decimal
 
 from . import catalog as cat
 from .catalog import AttributeRecord, Catalog, MutaplasmidRecord, TypeRecord
+from .errors import EsfError
 from .model import Entry, EsfFit, Location, State
 from .names import fold, shortest_unique
-from .resolve import DEFAULT_PLACES, PLUGGED, EmptySlot, Fit, Item, default_place, mode_name
-from .text import HOLDS, RACKS, SIGILS, is_count
+from .resolve import (
+    DEFAULT_PLACES,
+    DRONES,
+    FIGHTERS,
+    PLUGGED,
+    EmptySlot,
+    Fit,
+    Item,
+    default_place,
+    mode_name,
+)
+from .text import HOLDS, RACKS, SIGILS, UINT32_MAX, is_count
 
-GROUPS = (*RACKS, "drones", "fighters", "cargo", *HOLDS, *PLUGGED)
+GROUPS = (*RACKS, DRONES, FIGHTERS, Location.CARGO, *HOLDS, *PLUGGED)
 
 
 @dataclass
@@ -33,8 +44,8 @@ class CanonLine:
         if self.charge is not None:
             count = "" if self.charge_count is None else f"{self.charge_count}x "
             parts.append(f":{count}{quote_type(self.charge.name)}")
-        if self.mutaplasmid is not None:
-            parts.append(f"+{self.mutaplasmid_name}")
+        if self.mutaplasmid_name is not None:
+            parts.append(f"+{quote_type(self.mutaplasmid_name)}")
         if self.overrides:
             pairs = ", ".join(f"{a.name} {number(v)}" for a, v in self.overrides)
             parts.append(f"{{{pairs}}}")
@@ -66,8 +77,8 @@ class CanonFit:
         hull = [quote_type(self.hull.name) if self.hull else "-"]
         if self.name is not None:
             hull.append(quote(self.name))
-        if self.mode is not None:
-            hull.append(f"/{self.mode_text}")
+        if self.mode_text is not None:
+            hull.append(f"/{quote_type(self.mode_text)}")
         out = f"%esf/1\n{' '.join(hull)}\n"
         for group in self.groups:
             out += "\n" + "".join(line.text() + "\n" for line in group)
@@ -141,7 +152,7 @@ def _line(item: Item, fit: Fit, catalog: Catalog) -> CanonLine:
     return out
 
 
-def _sort_key(type_, text: str):
+def _sort_key(type_: TypeRecord, text: str) -> tuple[str, bytes]:
     return (fold(type_.name), text.encode())
 
 
@@ -152,6 +163,8 @@ def _collapse(lines: list[tuple[bool, CanonLine]]) -> list[CanonLine]:
         if out and repeatable and out[-1][0] and out[-1][1].body() == line.body():
             prev = out[-1][1]
             prev.count = (prev.count or 1) + (line.count or 1)
+            if prev.count > UINT32_MAX:
+                raise EsfError(f"lines merge into a count of {prev.count}, which is too large")
             continue
         out.append((repeatable, line))
     for _, line in out:
@@ -193,7 +206,7 @@ def _sorted(items: list[Item], fit: Fit, catalog: Catalog) -> list[CanonLine]:
 
 
 def _fighters(items: list[Item], fit: Fit, catalog: Catalog) -> list[CanonLine]:
-    tubes = [i for i in items if i.place == "fighters"]
+    tubes = [i for i in items if i.place == FIGHTERS]
     lines = []
     for item in tubes:
         line = _line(item, fit, catalog)
@@ -201,7 +214,7 @@ def _fighters(items: list[Item], fit: Fit, catalog: Catalog) -> list[CanonLine]:
         if count is not None and count != item.type.squadron_size:
             line.count = count
         lines.append(line)
-    return lines + _sorted([i for i in items if i.place == "bay"], fit, catalog)
+    return lines + _sorted([i for i in items if i.place == Location.BAY], fit, catalog)
 
 
 def canonical_fit(fit: Fit, catalog: Catalog) -> CanonFit:
@@ -210,7 +223,7 @@ def canonical_fit(fit: Fit, catalog: Catalog) -> CanonFit:
         if isinstance(item, EmptySlot) or item.place in RACKS:
             continue
         group = item.place
-        if group == "bay":
+        if group == Location.BAY:
             group = DEFAULT_PLACES[item.type.kind]
         groups.setdefault(group, []).append(item)
 
@@ -218,7 +231,7 @@ def canonical_fit(fit: Fit, catalog: Catalog) -> CanonFit:
     for group in GROUPS:
         if group in RACKS:
             chunk = _rack(fit, group, catalog)
-        elif group == "fighters":
+        elif group == FIGHTERS:
             chunk = _fighters(groups.get(group, []), fit, catalog)
         else:
             chunk = _sorted(groups.get(group, []), fit, catalog)

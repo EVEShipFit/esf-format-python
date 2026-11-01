@@ -1,52 +1,81 @@
 """The binary form (SPEC §10)."""
 
 import struct
+from typing import TypeVar
 
 from . import wire
 from .model import Entry, EsfFit, Location, State
-from .text import UINT32_MAX, EsfError
 
-STATES = (None, *State)
-LOCATIONS = (None, *Location)
+T = TypeVar("T")
+from .errors import EsfError
+from .text import UINT32_MAX
+
+STATES = {State.OFF: 1, State.ON: 2, State.HEAT: 3}
+LOCATIONS = {
+    Location.HIGH: 1,
+    Location.MID: 2,
+    Location.LOW: 3,
+    Location.RIG: 4,
+    Location.SUB: 5,
+    Location.SVC: 6,
+    Location.CARGO: 7,
+    Location.BAY: 8,
+    Location.AMMO: 9,
+    Location.BOOSTER: 10,
+    Location.COMMAND: 11,
+    Location.CORPSE: 12,
+    Location.DEPOT: 13,
+    Location.EXPEDITION: 14,
+    Location.FLEET: 15,
+    Location.FRIGATE: 16,
+    Location.FUEL: 17,
+    Location.GAS: 18,
+    Location.ICE: 19,
+    Location.INFRASTRUCTURE: 20,
+    Location.MAINTENANCE: 21,
+    Location.MINERAL: 22,
+    Location.MINING: 23,
+    Location.MOON: 24,
+    Location.PLANETARY: 25,
+    Location.QUAFE: 26,
+    Location.SUBSYSTEM: 27,
+}
 
 
 def _encode_entry(entry: Entry) -> bytes:
-    out = b""
+    out = []
     if entry.type is not None:
-        out += wire.uint(1, entry.type)
+        out.append(wire.uint(1, entry.type))
     if entry.count is not None:
-        if entry.count > UINT32_MAX:
-            raise EsfError(f"binary: a count of {entry.count} is too large")
-        out += wire.uint(2, entry.count)
+        out.append(wire.uint(2, entry.count))
     if entry.fit_name:
-        out += wire.record(3, entry.fit_name.encode())
+        out.append(wire.record(3, entry.fit_name.encode()))
     if entry.charge is not None:
-        out += wire.uint(4, entry.charge)
+        out.append(wire.uint(4, entry.charge))
     if entry.charge_count is not None:
-        out += wire.uint(5, entry.charge_count)
+        out.append(wire.uint(5, entry.charge_count))
     if entry.mutaplasmid is not None:
-        out += wire.uint(6, entry.mutaplasmid)
+        out.append(wire.uint(6, entry.mutaplasmid))
     if entry.overrides:
-        out += wire.packed_uints(7, list(entry.overrides))
-        out += wire.packed_doubles(8, list(entry.overrides.values()))
+        out.append(wire.packed_uints(7, list(entry.overrides)))
+        out.append(wire.packed_doubles(8, list(entry.overrides.values())))
     if entry.state is not None:
-        out += wire.uint(9, STATES.index(entry.state))
+        out.append(wire.uint(9, STATES[entry.state]))
     if entry.location is not None:
-        out += wire.uint(10, LOCATIONS.index(entry.location))
-    return out
+        out.append(wire.uint(10, LOCATIONS[entry.location]))
+    return b"".join(out)
 
 
 def _encode_fit(fit: EsfFit) -> bytes:
-    out = wire.uint(1, 1)
+    out = [wire.uint(1, 1)]
     if fit.hull is not None:
-        out += wire.uint(2, fit.hull)
+        out.append(wire.uint(2, fit.hull))
     if fit.name:
-        out += wire.record(3, fit.name.encode())
+        out.append(wire.record(3, fit.name.encode()))
     if fit.mode is not None:
-        out += wire.uint(4, fit.mode)
-    for entry in fit.entries:
-        out += wire.record(5, _encode_entry(entry))
-    return out
+        out.append(wire.uint(4, fit.mode))
+    out += [wire.record(5, _encode_entry(entry)) for entry in fit.entries]
+    return b"".join(out)
 
 
 def encode(fits: list[EsfFit]) -> bytes:
@@ -66,10 +95,13 @@ def _string(payload: bytes, what: str) -> str | None:
         raise EsfError(f"binary: {what} is not valid UTF-8") from None
 
 
-def _enum(values: tuple, value: int, what: str):
-    if value >= len(values):
-        raise EsfError(f"binary: unknown {what} value {value}")
-    return values[value]
+def _enum(numbers: dict[T, int], value: int, what: str) -> T | None:
+    if value == 0:
+        return None
+    for member, number in numbers.items():
+        if number == value:
+            return member
+    raise EsfError(f"binary: unknown {what} value {value}")
 
 
 def _not_in_schema(what: str) -> EsfError:
@@ -141,8 +173,6 @@ def _decode_fit(data: bytes) -> EsfFit:
 
 
 def decode(data: bytes) -> list[EsfFit]:
-    if not data:
-        raise EsfError("binary: the document is empty")
     fits = []
     for tag, wire_type, value in wire.fields(data):
         if tag != 1:
@@ -150,4 +180,6 @@ def decode(data: bytes) -> list[EsfFit]:
         if wire_type != wire.LEN:
             raise EsfError("binary: Document.fits has the wrong wire type")
         fits.append(_decode_fit(value))
+    if not fits:
+        raise EsfError("binary: a document holds at least one fit")
     return fits

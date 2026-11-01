@@ -36,11 +36,15 @@ fit = EsfFit(
 text = esf_format.save([fit], catalog)  # canonical text
 data = esf_format.save_binary([fit], catalog)  # binary
 fits = esf_format.load(data, catalog)  # text or binary
+
+url = esf_format.to_base64url(data)  # the binary form in a URL
+data = esf_format.from_base64url(url)
 ```
 
 `save()` and `save_binary()` take entries in any order, and check every rule
 of the spec. `load()` returns fits in canonical form. All three raise
-`esf_format.EsfError` when a rule is broken.
+`esf_format.EsfError` when a rule is broken. It says where: `line` for text,
+or `fit` and `entry` (counting from 1) for fits.
 
 ## Fits
 
@@ -54,13 +58,13 @@ Each `Entry` is one line of the fit. `None` means the default:
 | --- | --- | --- |
 | `type` | The type ID. | An empty slot. |
 | `count` | How many. | One; for fighters, a full squadron. |
-| `fit_name` | The name of another fit in the list, which this ship or container carries. | |
+| `fit_name` | The name of another fit in the list, which this ship or container carries. | Carries no fit. |
 | `charge` | The charge loaded. | |
 | `charge_count` | How many charges. | A full load. |
 | `mutaplasmid` | The mutaplasmid applied. | |
 | `overrides` | Attribute values by attribute ID. | |
 | `state` | `State.OFF`, `ON` or `HEAT`. | Active if the type can be, else on. |
-| `location` | A rack, `CARGO`, `BAY` or another hold. | Where the type goes by default. |
+| `location` | `CARGO`, `BAY` or another hold; a rack only for an empty slot. | Where the type goes by default. |
 
 ## The Catalog
 
@@ -74,14 +78,14 @@ class MyCatalog:
     def attribute(self, folded: str) -> esf_format.AttributeRecord | None: ...
     def attribute_by_id(self, attribute_id: int) -> esf_format.AttributeRecord | None: ...
 
-    # Optional; needed only for fits with a tactical mode or a mutaplasmid.
-    def modes(self, hull_id: int) -> list[esf_format.TypeRecord]: ...
-    def mutaplasmids(self, type_id: int) -> list[esf_format.MutaplasmidRecord]: ...
+    # Optional. Without them, no hull has tactical modes and no type has mutaplasmids.
+    def modes(self, hull_id: int) -> Sequence[esf_format.TypeRecord]: ...
+    def mutaplasmids(self, type_id: int) -> Sequence[esf_format.MutaplasmidRecord]: ...
 ```
 
 Names are looked up folded: index them with `esf_format.fold(name)`. Where
 names are shared, published wins, then the lowest ID (§4.2).
-[tests/catalog.py](tests/catalog.py) is a complete example.
+[tests/catalog.py](https://github.com/EVEShipFit/esf-format-python/blob/main/tests/catalog.py) is a complete example.
 
 ## Tests
 

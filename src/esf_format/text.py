@@ -4,12 +4,32 @@ import re
 from dataclasses import dataclass, field
 from typing import NoReturn
 
-from .model import Location
+from .errors import EsfError
 
 SIGILS = frozenset(':+{!@/"')
 RACKS = ("sub", "high", "mid", "low", "rig", "svc")
-STORED = tuple(str(location) for location in Location if location not in RACKS)
-HOLDS = tuple(location for location in STORED if location not in ("cargo", "bay"))
+HOLDS = (
+    "ammo",
+    "booster",
+    "command",
+    "corpse",
+    "depot",
+    "expedition",
+    "fleet",
+    "frigate",
+    "fuel",
+    "gas",
+    "ice",
+    "infrastructure",
+    "maintenance",
+    "mineral",
+    "mining",
+    "moon",
+    "planetary",
+    "quafe",
+    "subsystem",
+)
+STORED = ("cargo", "bay", *HOLDS)
 
 UINT32_MAX = 0xFFFFFFFF
 
@@ -19,18 +39,6 @@ _HEADER = re.compile(r" *%([a-z][a-z0-9-]*)/([0-9]+) *")
 _STATE = re.compile(r"!(off|on|heat)")
 _LOCATION = re.compile(r"@([a-z]+)([0-9]*)")
 _OVERRIDE = re.compile(r"([A-Za-z][A-Za-z0-9]*) +(-?[0-9]+(?:\.[0-9]+)?)")
-
-
-class EsfError(Exception):
-    def __init__(self, message: str, line: int | None = None):
-        super().__init__(message)
-        self.message = message
-        self.line = line
-
-    def __str__(self) -> str:
-        if self.line is None:
-            return self.message
-        return f"line {self.line}: {self.message}"
 
 
 @dataclass
@@ -114,7 +122,7 @@ class _Cursor:
             self.error(f"{what} is too large")
         return int(digits)
 
-    def finish(self):
+    def finish(self) -> None:
         if self.next_element():
             self.error(f"unexpected {self.token()!r}")
 

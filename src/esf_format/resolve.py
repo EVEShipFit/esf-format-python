@@ -8,16 +8,22 @@ from typing import NamedTuple, TypeVar
 
 from . import catalog as cat
 from .catalog import AttributeRecord, Catalog, Kind, MutaplasmidRecord, TypeRecord
+from .errors import EsfError
+from .model import Location
 from .names import fold, is_word_prefix
-from .text import RACKS, STORED, EmptyLine, EsfError, FitBlock, ItemLine
+from .text import RACKS, STORED, EmptyLine, FitBlock, ItemLine
 
-PLUGGED = ("implants", "boosters")
+DRONES = "drones"
+FIGHTERS = "fighters"
+IMPLANTS = "implants"
+BOOSTERS = "boosters"
+PLUGGED = (IMPLANTS, BOOSTERS)
 DEFAULT_PLACES = {
     **{Kind(rack): rack for rack in RACKS},
-    Kind.DRONE: "drones",
-    Kind.FIGHTER: "fighters",
-    Kind.IMPLANT: "implants",
-    Kind.BOOSTER: "boosters",
+    Kind.DRONE: DRONES,
+    Kind.FIGHTER: FIGHTERS,
+    Kind.IMPLANT: IMPLANTS,
+    Kind.BOOSTER: BOOSTERS,
 }
 
 
@@ -72,8 +78,8 @@ class Fit:
 
 def default_place(kind: Kind, cargo_only: bool) -> str:
     if cargo_only:
-        return "cargo"
-    return DEFAULT_PLACES.get(kind, "cargo")
+        return Location.CARGO
+    return DEFAULT_PLACES.get(kind, Location.CARGO)
 
 
 def mode_name(hull: TypeRecord, mode: TypeRecord) -> str:
@@ -147,11 +153,11 @@ def _resolve_line(
         item.reference = matches[0]
 
     if line.location is not None:
-        if fit.cargo_only and line.location != "cargo":
+        if fit.cargo_only and line.location != Location.CARGO:
             raise EsfError("a fit without a ship stores everything in cargo", n)
         if line.index is not None and DEFAULT_PLACES.get(kind) != line.location:
             raise EsfError(f"{t.name!r} does not go in the {line.location} rack", n)
-        if line.location == "bay" and kind not in (Kind.DRONE, Kind.FIGHTER):
+        if line.location == Location.BAY and kind not in (Kind.DRONE, Kind.FIGHTER):
             raise EsfError("@bay is only for drones and fighters", n)
         item.place = line.location
 
@@ -199,7 +205,7 @@ def _references(fit: Fit) -> Iterator[tuple[Item, Fit]]:
             yield item, item.reference
 
 
-def _check_cycles(fits: list[Fit]):
+def _check_cycles(fits: list[Fit]) -> None:
     """A fit cannot contain itself, directly or through other fits."""
     done: set[Fit] = set()
     for start in fits:
