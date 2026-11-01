@@ -92,7 +92,7 @@ names are shared, published wins, then the lowest ID (§4.2).
 The test cases live in [esf-format](https://github.com/EVEShipFit/esf-format):
 
 ```
-git clone https://github.com/EVEShipFit/esf-format
+git clone --branch v1.0 https://github.com/EVEShipFit/esf-format
 uv sync
 uv run --project esf-format/tools esf-test -- .venv/bin/python tests/program.py
 uv run pytest
