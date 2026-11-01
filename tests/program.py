@@ -3,8 +3,9 @@
 import os
 import sys
 
-import esf_format
 from catalog import JsonCatalog
+
+import esf_format
 
 
 def main() -> int:

@@ -40,18 +40,19 @@ def is_text(data: bytes) -> bool:
 def read(data: bytes, catalog: Catalog) -> list[CanonFit]:
     """Validate a text or binary document, and return its canonical form."""
     if is_text(data):
-        return [
-            canonical.canonical_fit(f, catalog) for f in resolve.resolve(text.parse(data), catalog)
-        ]
-    source, doc = binary.decode(data, catalog)
-    fits = resolve.resolve(text.parse(source), catalog)
-    binary.verify(fits, doc)
+        fits = resolve.resolve(text.parse(data), catalog)
+    else:
+        source, doc = binary.decode(data, catalog)
+        fits = resolve.resolve(text.parse(source), catalog)
+        binary.verify(fits, doc)
     return [canonical.canonical_fit(f, catalog) for f in fits]
 
 
 def to_text(fits: list[CanonFit]) -> str:
+    """The canonical text form (§8)."""
     return canonical.render(fits)
 
 
 def to_binary(fits: list[CanonFit]) -> bytes:
+    """The binary form (§10)."""
     return binary.encode(fits)

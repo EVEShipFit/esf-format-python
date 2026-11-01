@@ -28,7 +28,9 @@ class JsonCatalog:
             )
             for t in data["types"]
         }
-        self._attributes = {a["id"]: AttributeRecord(a["id"], a["name"]) for a in data["attributes"]}
+        self._attributes = {
+            a["id"]: AttributeRecord(a["id"], a["name"]) for a in data["attributes"]
+        }
         self._type_names = _by_name(data["types"])
         self._attribute_names = _by_name(data["attributes"])
         self._modes = {m["hull"]: [self._types[t] for t in m["modes"]] for m in data["modes"]}

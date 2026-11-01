@@ -3,64 +3,19 @@
 import bisect
 import math
 from dataclasses import dataclass, field
-from enum import StrEnum
 
 from . import catalog as cat
 from .catalog import AttributeRecord, Catalog, Kind, MutaplasmidRecord, TypeRecord
 from .names import fold, is_word_prefix
-from .text import EsfError, FitBlock, Line
+from .text import RACKS, STORED, EsfError, FitBlock, Line
 
-
-class Place(StrEnum):
-    """Where an item ends up (§5)."""
-
-    SUB = "sub"
-    HIGH = "high"
-    MID = "mid"
-    LOW = "low"
-    RIG = "rig"
-    SVC = "svc"
-    DRONES = "drones"
-    FIGHTERS = "fighters"
-    IMPLANTS = "implants"
-    BOOSTERS = "boosters"
-    CARGO = "cargo"
-    BAY = "bay"
-    AMMO = "ammo"
-    BOOSTER = "booster"
-    COMMAND = "command"
-    CORPSE = "corpse"
-    DEPOT = "depot"
-    EXPEDITION = "expedition"
-    FLEET = "fleet"
-    FRIGATE = "frigate"
-    FUEL = "fuel"
-    GAS = "gas"
-    ICE = "ice"
-    INFRASTRUCTURE = "infrastructure"
-    MAINTENANCE = "maintenance"
-    MINERAL = "mineral"
-    MINING = "mining"
-    MOON = "moon"
-    PLANETARY = "planetary"
-    QUAFE = "quafe"
-    SUBSYSTEM = "subsystem"
-
-
-RACKS = (Place.SUB, Place.HIGH, Place.MID, Place.LOW, Place.RIG, Place.SVC)
-PLUGGED = (Place.IMPLANTS, Place.BOOSTERS)
-STORED = tuple(Place)[list(Place).index(Place.CARGO) :]
+PLUGGED = ("implants", "boosters")
 DEFAULT_PLACES = {
-    Kind.SUB: Place.SUB,
-    Kind.HIGH: Place.HIGH,
-    Kind.MID: Place.MID,
-    Kind.LOW: Place.LOW,
-    Kind.RIG: Place.RIG,
-    Kind.SVC: Place.SVC,
-    Kind.DRONE: Place.DRONES,
-    Kind.FIGHTER: Place.FIGHTERS,
-    Kind.IMPLANT: Place.IMPLANTS,
-    Kind.BOOSTER: Place.BOOSTERS,
+    **{Kind(rack): rack for rack in RACKS},
+    Kind.DRONE: "drones",
+    Kind.FIGHTER: "fighters",
+    Kind.IMPLANT: "implants",
+    Kind.BOOSTER: "boosters",
 }
 
 
@@ -68,8 +23,7 @@ DEFAULT_PLACES = {
 class Item:
     line: Line
     type: TypeRecord | None
-    kind: Kind | None
-    place: Place
+    place: str
     charge: TypeRecord | None = None
     mutaplasmid: MutaplasmidRecord | None = None
     overrides: list[tuple[AttributeRecord, float]] = field(default_factory=list)
@@ -80,24 +34,24 @@ class Item:
         return self.place in STORED
 
 
-@dataclass
+@dataclass(eq=False)
 class Fit:
     block: FitBlock
     hull: TypeRecord | None
     mode: TypeRecord | None
     cargo_only: bool
     items: list[Item] = field(default_factory=list)
-    racks: dict[Place, list[tuple[int, int, Item | None]]] = field(default_factory=dict)
+    racks: dict[str, list[tuple[int, int, Item | None]]] = field(default_factory=dict)
 
     @property
     def name(self) -> str | None:
         return self.block.fit_name
 
 
-def default_place(kind: Kind, cargo_only: bool) -> Place:
+def default_place(kind: Kind, cargo_only: bool) -> str:
     if cargo_only:
-        return Place.CARGO
-    return DEFAULT_PLACES.get(kind, Place.CARGO)
+        return "cargo"
+    return DEFAULT_PLACES.get(kind, "cargo")
 
 
 def mode_name(hull, mode) -> str:
@@ -149,14 +103,14 @@ def _resolve_line(line: Line, fit: Fit, fits: list[Fit], catalog: Catalog) -> It
     if line.kind == "empty":
         if fit.cargo_only:
             raise EsfError("a fit without a ship has no slots to keep empty", n)
-        return Item(line, None, None, Place(line.location))
+        return Item(line, None, line.location)
 
     t = _type(catalog, line.name, n)
     kind = t.kind
     if kind == Kind.MODE:
         raise EsfError("a tactical mode is only written on the hull line", n)
 
-    item = Item(line, t, kind, default_place(kind, fit.cargo_only))
+    item = Item(line, t, default_place(kind, fit.cargo_only))
 
     if line.kind == "reference":
         if kind not in (Kind.HULL, Kind.CONTAINER):
@@ -179,13 +133,13 @@ def _resolve_line(line: Line, fit: Fit, fits: list[Fit], catalog: Catalog) -> It
             raise EsfError("a fit without a ship stores everything in cargo", n)
         if DEFAULT_PLACES.get(kind) != line.location:
             raise EsfError(f"{t.name!r} does not go in the {line.location} rack", n)
-        item.place = Place(line.location)
+        item.place = line.location
     elif line.location is not None:
-        if fit.cargo_only and line.location != Place.CARGO:
+        if fit.cargo_only and line.location != "cargo":
             raise EsfError("a fit without a ship stores everything in cargo", n)
-        if line.location == Place.BAY and kind not in (Kind.DRONE, Kind.FIGHTER):
+        if line.location == "bay" and kind not in (Kind.DRONE, Kind.FIGHTER):
             raise EsfError("@bay is only for drones and fighters", n)
-        item.place = Place(line.location)
+        item.place = line.location
 
     if item.place in PLUGGED and line.count is not None:
         raise EsfError("a plugged-in implant or booster takes no count", n)
@@ -225,26 +179,23 @@ def _resolve_line(line: Line, fit: Fit, fits: list[Fit], catalog: Catalog) -> It
 
 
 def _check_cycles(fits: list[Fit]):
-    done: set[int] = set()
+    """A fit cannot contain itself, directly or through other fits."""
+    done: set[Fit] = set()
     for start in fits:
-        if id(start) in done:
-            continue
-        path = {id(start)}
+        path = {start}
         stack = [(start, iter(start.items))]
         while stack:
             fit, items = stack[-1]
             item = next((i for i in items if i.reference is not None), None)
             if item is None:
                 stack.pop()
-                path.discard(id(fit))
-                done.add(id(fit))
-                continue
-            ref = item.reference
-            if id(ref) in path:
+                path.discard(fit)
+                done.add(fit)
+            elif item.reference in path:
                 raise EsfError("a fit cannot contain itself", item.line.number)
-            if id(ref) not in done:
-                path.add(id(ref))
-                stack.append((ref, iter(ref.items)))
+            elif item.reference not in done:
+                path.add(item.reference)
+                stack.append((item.reference, iter(item.reference.items)))
 
 
 def _layout(items: list[Item]) -> list[tuple[int, int, Item | None]]:

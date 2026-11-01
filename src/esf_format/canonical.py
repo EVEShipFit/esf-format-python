@@ -6,41 +6,10 @@ from decimal import Decimal
 from . import catalog as cat
 from .catalog import AttributeRecord, Catalog, MutaplasmidRecord, TypeRecord
 from .names import fold, shortest_unique
-from .resolve import DEFAULT_PLACES, PLUGGED, RACKS, Fit, Item, Place, default_place, mode_name
-from .text import SIGILS, is_count
+from .resolve import DEFAULT_PLACES, PLUGGED, Fit, Item, default_place, mode_name
+from .text import HOLDS, RACKS, SIGILS, is_count
 
-GROUPS = (
-    Place.SUB,
-    Place.HIGH,
-    Place.MID,
-    Place.LOW,
-    Place.RIG,
-    Place.SVC,
-    Place.DRONES,
-    Place.FIGHTERS,
-    Place.CARGO,
-    Place.AMMO,
-    Place.BOOSTER,
-    Place.COMMAND,
-    Place.CORPSE,
-    Place.DEPOT,
-    Place.EXPEDITION,
-    Place.FLEET,
-    Place.FRIGATE,
-    Place.FUEL,
-    Place.GAS,
-    Place.ICE,
-    Place.INFRASTRUCTURE,
-    Place.MAINTENANCE,
-    Place.MINERAL,
-    Place.MINING,
-    Place.MOON,
-    Place.PLANETARY,
-    Place.QUAFE,
-    Place.SUBSYSTEM,
-    Place.IMPLANTS,
-    Place.BOOSTERS,
-)
+GROUPS = (*RACKS, "drones", "fighters", "cargo", *HOLDS, *PLUGGED)
 
 
 @dataclass
@@ -126,13 +95,12 @@ def number(value: float) -> str:
     if value == 0:
         value = 0.0
     text = repr(value)
-    if "e" in text or "E" in text:
+    if "e" in text:
         text = format(Decimal(text), "f")
-    text = text.removesuffix(".0")
-    return text
+    return text.removesuffix(".0")
 
 
-def _default_state(item: Item, catalog: Catalog) -> str | None:
+def _default_state(item: Item) -> str | None:
     """The state token that canonical form leaves out; None means running."""
     if item.place in PLUGGED or not item.type.active:
         return "on"
@@ -164,10 +132,10 @@ def _line(item: Item, fit: Fit, catalog: Catalog) -> CanonLine:
                 overrides[attr_id] = (catalog.attribute_by_id(attr_id), base)
     out.overrides = sorted(overrides.values(), key=lambda o: (fold(o[0].name), o[0].name))
 
-    if line.state is not None and line.state != _default_state(item, catalog):
+    if line.state is not None and line.state != _default_state(item):
         out.state = line.state
 
-    if item.place != default_place(item.kind, fit.cargo_only) and item.place not in RACKS:
+    if item.place != default_place(item.type.kind, fit.cargo_only) and item.place not in RACKS:
         out.location = item.place
     return out
 
@@ -191,7 +159,7 @@ def _collapse(lines: list[tuple[bool, CanonLine]]) -> list[CanonLine]:
     return [line for _, line in out]
 
 
-def _rack(fit: Fit, rack: Place, catalog: Catalog) -> list[CanonLine]:
+def _rack(fit: Fit, rack: str, catalog: Catalog) -> list[CanonLine]:
     runs = list(fit.racks.get(rack, []))
     while runs and (runs[-1][2] is None or runs[-1][2].type is None):
         runs.pop()
@@ -224,7 +192,7 @@ def _sorted(items: list[Item], fit: Fit, catalog: Catalog) -> list[CanonLine]:
 
 
 def _fighters(items: list[Item], fit: Fit, catalog: Catalog) -> list[CanonLine]:
-    tubes = [i for i in items if i.place == Place.FIGHTERS]
+    tubes = [i for i in items if i.place == "fighters"]
     lines = []
     for item in tubes:
         line = _line(item, fit, catalog)
@@ -232,24 +200,24 @@ def _fighters(items: list[Item], fit: Fit, catalog: Catalog) -> list[CanonLine]:
         if count is not None and count != item.type.squadron_size:
             line.count = count
         lines.append(line)
-    return lines + _sorted([i for i in items if i.place == Place.BAY], fit, catalog)
+    return lines + _sorted([i for i in items if i.place == "bay"], fit, catalog)
 
 
 def canonical_fit(fit: Fit, catalog: Catalog) -> CanonFit:
-    groups: dict[Place, list[Item]] = {}
+    groups: dict[str, list[Item]] = {}
     for item in fit.items:
         if item.place in RACKS:
             continue
         group = item.place
-        if group == Place.BAY:
-            group = DEFAULT_PLACES[item.kind]
+        if group == "bay":
+            group = DEFAULT_PLACES[item.type.kind]
         groups.setdefault(group, []).append(item)
 
     chunks = []
     for group in GROUPS:
         if group in RACKS:
             chunk = _rack(fit, group, catalog)
-        elif group == Place.FIGHTERS:
+        elif group == "fighters":
             chunk = _fighters(groups.get(group, []), fit, catalog)
         else:
             chunk = _sorted(groups.get(group, []), fit, catalog)

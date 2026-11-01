@@ -8,39 +8,10 @@ from . import wire
 from .canonical import CanonFit, number, quote, quote_type
 from .catalog import Catalog
 from .resolve import Fit
-from .text import EsfError
+from .text import HOLDS, EsfError
 
 STATES = (None, "off", "on", "heat")
-LOCATIONS = (
-    None,
-    "high",
-    "mid",
-    "low",
-    "rig",
-    "sub",
-    "svc",
-    "cargo",
-    "bay",
-    "ammo",
-    "booster",
-    "command",
-    "corpse",
-    "depot",
-    "expedition",
-    "fleet",
-    "frigate",
-    "fuel",
-    "gas",
-    "ice",
-    "infrastructure",
-    "maintenance",
-    "mineral",
-    "mining",
-    "moon",
-    "planetary",
-    "quafe",
-    "subsystem",
-)
+LOCATIONS = (None, "high", "mid", "low", "rig", "sub", "svc", "cargo", "bay", *HOLDS)
 
 
 @dataclass

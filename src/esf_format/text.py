@@ -29,6 +29,7 @@ HOLDS = (
 STORED = ("cargo", "bay", *HOLDS)
 
 _COUNT = re.compile(r"[0-9]+x")
+_QUOTED = re.compile(r'"((?:[^"]|"")*+)"')
 _HEADER = re.compile(r" *%([a-z][a-z0-9-]*)/([0-9]+) *")
 _STATE = re.compile(r"!(off|on|heat)")
 _LOCATION = re.compile(r"@([a-z]+)([0-9]*)")
@@ -129,24 +130,13 @@ class _Cursor:
         return int(token[:-1])
 
     def quoted(self) -> str:
-        self.i += 1
-        out = []
-        while True:
-            if self.i >= len(self.s):
-                self.error("unterminated quoted string")
-            c = self.s[self.i]
-            if c == '"':
-                if self.s.startswith('""', self.i):
-                    out.append('"')
-                    self.i += 2
-                    continue
-                self.i += 1
-                break
-            out.append(c)
-            self.i += 1
-        if not out:
+        match = _QUOTED.match(self.s, self.i)
+        if not match:
+            self.error("unterminated quoted string")
+        if not match.group(1):
             self.error("a quoted string cannot be empty")
-        return "".join(out)
+        self.i = match.end()
+        return match.group(1).replace('""', '"')
 
     def word(self) -> str:
         token = self.token()
