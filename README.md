@@ -14,8 +14,8 @@ pip install esf-format
 import esf_format
 
 fits = esf_format.read(data, catalog)  # text or binary, as bytes
-text = esf_format.to_text(fits)        # canonical text form
-binary = esf_format.to_binary(fits)    # binary form
+text = esf_format.to_text(fits)  # canonical text form
+binary = esf_format.to_binary(fits)  # binary form
 ```
 
 `read()` raises `esf_format.EsfError` for an invalid document.

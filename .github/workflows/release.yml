@@ -17,8 +17,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v6
 
-      - name: Check the tag matches the version
-        run: test "${GITHUB_REF_NAME#v}" = "$(uv version --short)"
+      - name: Set the version from the release tag
+        run: uv version --frozen "${GITHUB_REF_NAME#v}"
 
       - name: Build
         run: uv build

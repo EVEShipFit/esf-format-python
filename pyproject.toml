@@ -1,6 +1,6 @@
 [project]
 name = "esf-format"
-version = "0.1.0"
+version = "0.0.0.dev0"
 description = "Read and write esf/1, the plain-text format for EVE Online ship fits"
 readme = "README.md"
 license = "MIT"
