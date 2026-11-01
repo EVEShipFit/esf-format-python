@@ -1,5 +1,10 @@
 # esf-format
 
+[![PyPI](https://img.shields.io/pypi/v/esf-format.svg)](https://pypi.org/project/esf-format/)
+[![Python](https://img.shields.io/pypi/pyversions/esf-format.svg)](https://pypi.org/project/esf-format/)
+[![CI](https://github.com/EVEShipFit/esf-format-python/actions/workflows/test.yml/badge.svg)](https://github.com/EVEShipFit/esf-format-python/actions/workflows/test.yml)
+[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/S5V5BkvNf7)
+
 Read and write [esf/1](https://github.com/EVEShipFit/esf-format), the
 plain-text format for EVE Online ship fits. Text, canonical and binary forms.
 No dependencies.
