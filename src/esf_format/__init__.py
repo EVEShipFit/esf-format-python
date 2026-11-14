@@ -3,7 +3,7 @@
 import base64
 import re
 
-from . import binary, canonical, resolve, source, text
+from . import binary, canonical, resolve, sde, source, text
 from .canonical import CanonFit
 from .catalog import (
     AttributeRecord,
@@ -37,6 +37,7 @@ __all__ = [
     "load",
     "save",
     "save_binary",
+    "sde",
     "to_base64url",
 ]
 
