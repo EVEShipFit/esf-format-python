@@ -37,6 +37,8 @@ def _entry(e: Entry, catalog: Catalog) -> str:
     for n in (e.count, e.charge_count):
         if n is not None and n < 1:
             raise EsfError("a count must be at least 1")
+    if e.slot is not None and (isinstance(e.slot, bool) or not isinstance(e.slot, int)):
+        raise EsfError("a slot must be a whole number")
     if e.slot is not None and e.slot < 1:
         raise EsfError("a slot must be at least 1")
     if e.slot is not None and e.location not in RACKS:

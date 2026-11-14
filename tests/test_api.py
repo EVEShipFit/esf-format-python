@@ -110,6 +110,21 @@ def test_binary_round_trip():
         ),
         pytest.param([fit(Entry(AUTOCANNON, slot=1))], "needs the rack", id="slot-without-rack"),
         pytest.param(
+            [fit(Entry(AUTOCANNON, location=Location.HIGH, slot=True))],
+            "a slot must be a whole number",
+            id="slot-bool",
+        ),
+        pytest.param(
+            [fit(Entry(AUTOCANNON, location=Location.HIGH, slot=4294967296))],
+            "too large",
+            id="slot-too-large",
+        ),
+        pytest.param(
+            [fit(Entry(None, count=2, location=Location.HIGH, slot=1))],
+            "mutually exclusive",
+            id="empty-slot-with-count",
+        ),
+        pytest.param(
             [fit(Entry(AUTOCANNON, count=2, location=Location.HIGH, slot=1))],
             "mutually exclusive",
             id="slot-with-count",
@@ -186,6 +201,20 @@ def test_save_slots():
         Entry(None, location=Location.LOW),
         Entry(DAMAGE_CONTROL),
     ]
+
+
+def test_save_slot_after_other_type():
+    text = save(
+        [fit(Entry(SHIELD_EXTENDER), Entry(SCRAMBLER, location=Location.MID, slot=1))], CATALOG
+    )
+    assert text == "%esf/1\nRifter\n\nWarp Scrambler II\nMedium Shield Extender II\n"
+    [loaded] = load(text, CATALOG)
+    assert loaded.entries == [Entry(SCRAMBLER), Entry(SHIELD_EXTENDER)]
+
+
+def test_binary_slots():
+    fits = [fit(Entry(AUTOCANNON), Entry(AUTOCANNON, location=Location.HIGH, slot=3))]
+    assert load(save_binary(fits, CATALOG), CATALOG) == load(save(fits, CATALOG), CATALOG)
 
 
 def test_error_location():

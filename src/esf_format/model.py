@@ -188,8 +188,10 @@ class Entry:
     slot: int | None = None
     """The slot in the `location` rack, counting from 1, like 3 for the third high slot.
 
-    Set `location` to the rack too. None means the next free slot. `esf_format.load()`
-    never sets this: it gives the rack in slot order, with empty slots in between.
+    Set `location` to the rack too, and the item must go in that rack. A slot can't be
+    combined with `count`, and each slot in a rack can be pinned only once. None means the
+    next free slot. `esf_format.load()` never sets this: it gives the rack in slot order,
+    with empty slots in between.
     """
 
 
