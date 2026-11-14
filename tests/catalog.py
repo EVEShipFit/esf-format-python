@@ -2,14 +2,12 @@
 
 import json
 
-from esf_format import AttributeRecord, Kind, MutaplasmidRecord, TypeRecord, fold
+from esf_format import AttributeRecord, Kind, MutaplasmidRecord, TypeRecord
+from esf_format.sde import name_index
 
 
 def _by_name(entries: list[dict]) -> dict[str, int]:
-    index = {}
-    for e in sorted(entries, key=lambda e: (not e["published"], e["id"])):
-        index.setdefault(fold(e["name"]), e["id"])
-    return index
+    return name_index(entries, lambda e: e["id"], lambda e: e["name"], lambda e: e["published"])
 
 
 class JsonCatalog:
@@ -40,14 +38,14 @@ class JsonCatalog:
             record = MutaplasmidRecord(self._types[m["mutaplasmid"]], rolls)
             self._mutaplasmids.setdefault(m["base"], []).append(record)
 
-    def type(self, folded: str) -> TypeRecord | None:
-        return self._types.get(self._type_names.get(folded))
+    def type(self, folded_name: str) -> TypeRecord | None:
+        return self._types.get(self._type_names.get(folded_name))
 
     def type_by_id(self, type_id: int) -> TypeRecord | None:
         return self._types.get(type_id)
 
-    def attribute(self, folded: str) -> AttributeRecord | None:
-        return self._attributes.get(self._attribute_names.get(folded))
+    def attribute(self, folded_name: str) -> AttributeRecord | None:
+        return self._attributes.get(self._attribute_names.get(folded_name))
 
     def attribute_by_id(self, attribute_id: int) -> AttributeRecord | None:
         return self._attributes.get(attribute_id)

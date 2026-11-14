@@ -73,9 +73,9 @@ up types and attributes in your copy of the SDE.
 
 ```python
 class MyCatalog:
-    def type(self, folded: str) -> esf_format.TypeRecord | None: ...
+    def type(self, folded_name: str) -> esf_format.TypeRecord | None: ...
     def type_by_id(self, type_id: int) -> esf_format.TypeRecord | None: ...
-    def attribute(self, folded: str) -> esf_format.AttributeRecord | None: ...
+    def attribute(self, folded_name: str) -> esf_format.AttributeRecord | None: ...
     def attribute_by_id(self, attribute_id: int) -> esf_format.AttributeRecord | None: ...
 
     # Optional. Without them, no hull has tactical modes and no type has mutaplasmids.
@@ -83,9 +83,31 @@ class MyCatalog:
     def mutaplasmids(self, type_id: int) -> Sequence[esf_format.MutaplasmidRecord]: ...
 ```
 
-Names are looked up folded: index them with `esf_format.fold(name)`. Where
-names are shared, published wins, then the lowest ID (§4.2).
-[tests/catalog.py](https://github.com/EVEShipFit/esf-format-python/blob/main/tests/catalog.py) is a complete example.
+Each method and field says what to return and where in the SDE it comes
+from. `esf_format.sde` has helpers for the parts that take more than a lookup:
+
+```python
+from esf_format import TypeRecord, sde
+
+type_names = sde.name_index(
+    types, lambda t: t["_key"], lambda t: t["name"]["en"], lambda t: t.get("published", False)
+)
+
+# effects: effectID -> effectCategoryID; attributes: attributeID -> value
+
+TypeRecord(
+    id=t["_key"],
+    name=t["name"]["en"],
+    kind=sde.kind(group["categoryID"], t["groupID"], effects.keys()),
+    active=sde.active(effects),
+    capacity=t.get("capacity", 0.0),
+    volume=t.get("volume", 0.0),
+    squadron_size=sde.squadron_size(attributes),
+)
+```
+
+[examples/sde_jsonl_catalog.py](https://github.com/EVEShipFit/esf-format-python/blob/main/examples/sde_jsonl_catalog.py)
+is a complete example on the official SDE in JSONL: copy it into your project.
 
 ## Tests
 
