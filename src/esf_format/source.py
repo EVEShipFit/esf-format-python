@@ -37,8 +37,12 @@ def _entry(e: Entry, catalog: Catalog) -> str:
     for n in (e.count, e.charge_count):
         if n is not None and n < 1:
             raise EsfError("a count must be at least 1")
-    if e.type is not None and e.location in RACKS:
-        raise EsfError("a rack location is only for an empty slot")
+    if e.slot is not None and e.slot < 1:
+        raise EsfError("a slot must be at least 1")
+    if e.slot is not None and e.location not in RACKS:
+        raise EsfError("a slot needs the rack it is in")
+    if e.type is not None and e.slot is None and e.location in RACKS:
+        raise EsfError("an item names a rack only to pin a slot")
     if e.charge_count is not None and e.charge is None:
         raise EsfError("a charge count is set without a charge")
 
@@ -64,7 +68,7 @@ def _entry(e: Entry, catalog: Catalog) -> str:
     if e.state is not None:
         parts.append(f"!{e.state}")
     if e.location is not None:
-        parts.append(f"@{e.location}")
+        parts.append(f"@{e.location}{'' if e.slot is None else e.slot}")
     return " ".join(parts)
 
 
