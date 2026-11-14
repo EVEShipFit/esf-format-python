@@ -102,8 +102,50 @@ def test_binary_round_trip():
         pytest.param([fit(Entry(999_999_999))], "unknown item type ID", id="unknown-type"),
         pytest.param(
             [fit(Entry(AUTOCANNON, location=Location.HIGH))],
-            "only for an empty slot",
+            "only to pin a slot",
             id="rack-on-item",
+        ),
+        pytest.param(
+            [fit(Entry(AUTOCANNON, location=Location.HIGH, slot=0))], "at least 1", id="slot-zero"
+        ),
+        pytest.param([fit(Entry(AUTOCANNON, slot=1))], "needs the rack", id="slot-without-rack"),
+        pytest.param(
+            [fit(Entry(AUTOCANNON, location=Location.HIGH, slot=True))],
+            "a slot must be a whole number",
+            id="slot-bool",
+        ),
+        pytest.param(
+            [fit(Entry(AUTOCANNON, location=Location.HIGH, slot=4294967296))],
+            "too large",
+            id="slot-too-large",
+        ),
+        pytest.param(
+            [fit(Entry(None, count=2, location=Location.HIGH, slot=1))],
+            "mutually exclusive",
+            id="empty-slot-with-count",
+        ),
+        pytest.param(
+            [fit(Entry(AUTOCANNON, count=2, location=Location.HIGH, slot=1))],
+            "mutually exclusive",
+            id="slot-with-count",
+        ),
+        pytest.param(
+            [fit(Entry(AUTOCANNON, location=Location.LOW, slot=1))],
+            "does not go in the low rack",
+            id="slot-wrong-rack",
+        ),
+        pytest.param(
+            [fit(Entry(EMP, location=Location.CARGO, slot=1))], "needs the rack", id="slot-on-hold"
+        ),
+        pytest.param(
+            [
+                fit(
+                    Entry(AUTOCANNON, location=Location.HIGH, slot=1),
+                    Entry(AUTOCANNON, location=Location.HIGH, slot=1),
+                )
+            ],
+            "pinned twice",
+            id="slot-twice",
         ),
         pytest.param(
             [fit(Entry(AUTOCANNON, charge_count=10))], "without a charge", id="charge-count-alone"
@@ -130,6 +172,49 @@ def test_binary_round_trip():
 def test_save_invalid(fits: list[EsfFit], message: str):
     with pytest.raises(EsfError, match=message):
         save(fits, CATALOG)
+
+
+def test_save_slots():
+    pinned = fit(
+        Entry(AUTOCANNON),
+        Entry(AUTOCANNON, location=Location.HIGH, slot=3),
+        Entry(None, location=Location.LOW, slot=1),
+        Entry(DAMAGE_CONTROL),
+    )
+    text = save([pinned], CATALOG)
+    assert text == (
+        "%esf/1\n"
+        "Rifter\n"
+        "\n"
+        "200mm AutoCannon II\n"
+        "- @high\n"
+        "200mm AutoCannon II\n"
+        "\n"
+        "- @low\n"
+        "Damage Control II\n"
+    )
+    [loaded] = load(text, CATALOG)
+    assert loaded.entries == [
+        Entry(AUTOCANNON),
+        Entry(None, location=Location.HIGH),
+        Entry(AUTOCANNON),
+        Entry(None, location=Location.LOW),
+        Entry(DAMAGE_CONTROL),
+    ]
+
+
+def test_save_slot_after_other_type():
+    text = save(
+        [fit(Entry(SHIELD_EXTENDER), Entry(SCRAMBLER, location=Location.MID, slot=1))], CATALOG
+    )
+    assert text == "%esf/1\nRifter\n\nWarp Scrambler II\nMedium Shield Extender II\n"
+    [loaded] = load(text, CATALOG)
+    assert loaded.entries == [Entry(SCRAMBLER), Entry(SHIELD_EXTENDER)]
+
+
+def test_binary_slots():
+    fits = [fit(Entry(AUTOCANNON), Entry(AUTOCANNON, location=Location.HIGH, slot=3))]
+    assert load(save_binary(fits, CATALOG), CATALOG) == load(save(fits, CATALOG), CATALOG)
 
 
 def test_error_location():

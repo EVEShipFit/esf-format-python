@@ -1,4 +1,4 @@
-"""Fits as type IDs, the way load() returns them and save() takes them (SPEC §5, §10)."""
+"""Fits as type IDs, the way load() returns them and save() takes them (SPEC §5, §6.3, §10)."""
 
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -28,28 +28,29 @@ class Location(StrEnum):
     An item goes where its `Kind` says, so most entries leave this None. Set it to store an
     item somewhere else, like a spare Damage Control II in CARGO.
 
-    The racks, HIGH to SVC, are only for empty slots. An item never names its rack.
+    The racks, HIGH to SVC, are for empty slots, and for an item put in a given
+    `Entry.slot`. Otherwise, an item never names its rack.
     The holds, AMMO to SUBSYSTEM, only make sense on a hull that has that hold, but the
     library does not check that.
     """
 
     HIGH = "high"
-    """The high slot rack, for an empty slot."""
+    """The high slot rack."""
 
     MID = "mid"
-    """The mid slot rack, for an empty slot."""
+    """The mid slot rack."""
 
     LOW = "low"
-    """The low slot rack, for an empty slot."""
+    """The low slot rack."""
 
     RIG = "rig"
-    """The rig rack, for an empty slot."""
+    """The rig rack."""
 
     SUB = "sub"
-    """The subsystem rack, for an empty slot. Not the same as SUBSYSTEM, which is a hold."""
+    """The subsystem rack. Not the same as SUBSYSTEM, which is a hold."""
 
     SVC = "svc"
-    """The structure service rack, for an empty slot."""
+    """The structure service rack."""
 
     CARGO = "cargo"
     """The cargo hold."""
@@ -120,7 +121,8 @@ class Entry:
     """One line of a fit: an item, an empty slot, or another fit carried by this one.
 
     Only `type` is needed; every other field is None or empty when it is the default.
-    Entries can be in any order, except within a rack: there, the order is the slot order.
+    Entries can be in any order, except within a rack: there, the order is the slot order,
+    unless an entry sets `slot`.
     """
 
     type: int | None
@@ -182,6 +184,15 @@ class Entry:
 
     location: Location | None = None
     """Where the item goes. None means where its type goes by default; see `Location`."""
+
+    slot: int | None = None
+    """The slot in the `location` rack, counting from 1, like 3 for the third high slot.
+
+    Set `location` to the rack too, and the item must go in that rack. A slot can't be
+    combined with `count`, and each slot in a rack can be pinned only once. None means the
+    next free slot. `esf_format.load()` never sets this: it gives the rack in slot order,
+    with empty slots in between.
+    """
 
 
 @dataclass
