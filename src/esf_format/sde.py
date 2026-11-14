@@ -1,4 +1,4 @@
-"""Helpers to build a Catalog from the SDE (SPEC §4.2, §5, §6.1, §6.4).
+"""Helpers to build a Catalog from the SDE (esf/1 spec §4.2, §5, §6.1, §6.4).
 
 These cover the fields that take more than a lookup. Each helper takes plain values
 from the SDE files, so it works however you load them.
@@ -34,7 +34,7 @@ _SLOT_EFFECTS = {12: Kind.HIGH, 13: Kind.MID, 11: Kind.LOW, 2663: Kind.RIG, 6306
 _ATTRIBUTE_SQUADRON_SIZE = 2215
 
 
-def kind(category_id: int, group_id: int, effect_ids: Iterable[int]) -> Kind:
+def kind(category_id: int, group_id: int, effect_ids: Iterable[int], /) -> Kind:
     """Works out what a type is. See `Kind` for each rule.
 
     `category_id` is the `categoryID` of the type's group, in `groups.jsonl`.
@@ -54,7 +54,7 @@ def kind(category_id: int, group_id: int, effect_ids: Iterable[int]) -> Kind:
     return _CATEGORY_KINDS.get(category_id, Kind.OTHER)
 
 
-def active(effects: Mapping[int, int]) -> bool:
+def active(effects: Mapping[int, int], /) -> bool:
     """Works out whether a type runs when it is turned on (§6.4), for `TypeRecord.active`.
 
     `effects` maps each `effectID` in the type's `dogmaEffects` (in `typeDogma.jsonl`)
@@ -70,7 +70,7 @@ def active(effects: Mapping[int, int]) -> bool:
     )
 
 
-def squadron_size(attributes: Mapping[int, float]) -> int | None:
+def squadron_size(attributes: Mapping[int, float], /) -> int | None:
     """Reads how many fighters make up a full squadron, for `TypeRecord.squadron_size`.
 
     `attributes` maps each `attributeID` in the type's `dogmaAttributes`
@@ -81,7 +81,7 @@ def squadron_size(attributes: Mapping[int, float]) -> int | None:
     return None if value is None else int(value)
 
 
-def mode_hull(mode_name: str, ship_names: Mapping[str, int]) -> int | None:
+def mode_hull(mode_name: str, ship_names: Mapping[str, int], /) -> int | None:
     """Finds which hull a tactical mode belongs to, for `ModeCatalog.modes()`.
 
     The SDE does not link a mode to its hull. Instead, a mode's name starts with
@@ -104,6 +104,7 @@ def name_index(
     id: Callable[[_T], int],
     name: Callable[[_T], str],
     published: Callable[[_T], bool],
+    /,
 ) -> dict[str, int]:
     """Builds the name store that `Catalog.type()` and `Catalog.attribute()` look names up in.
 

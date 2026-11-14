@@ -173,7 +173,7 @@ class Catalog(Protocol):
     https://github.com/EVEShipFit/esf-format/blob/main/SPEC.md
     """
 
-    def type(self, folded_name: str) -> TypeRecord | None:
+    def type(self, folded_name: str, /) -> TypeRecord | None:
         """Finds a type by its name.
 
         The name comes from a fit, so a user may have typed it in any case.
@@ -191,11 +191,11 @@ class Catalog(Protocol):
         """
         ...
 
-    def type_by_id(self, type_id: int) -> TypeRecord | None:
+    def type_by_id(self, type_id: int, /) -> TypeRecord | None:
         """Finds a type by its ID. Return None if there is no type with this ID."""
         ...
 
-    def attribute(self, folded_name: str) -> AttributeRecord | None:
+    def attribute(self, folded_name: str, /) -> AttributeRecord | None:
         """Finds an attribute by its name, like "speedfactor".
 
         This works the same way as `type()`: the name is already case-folded with
@@ -207,7 +207,7 @@ class Catalog(Protocol):
         """
         ...
 
-    def attribute_by_id(self, attribute_id: int) -> AttributeRecord | None:
+    def attribute_by_id(self, attribute_id: int, /) -> AttributeRecord | None:
         """Finds an attribute by its ID. Return None if there is no attribute with this ID."""
         ...
 
@@ -218,7 +218,7 @@ class ModeCatalog(Catalog, Protocol):
     The `modes()` method is optional. Leave it out and no hull has tactical modes.
     """
 
-    def modes(self, hull_id: int) -> Sequence[TypeRecord]:
+    def modes(self, hull_id: int, /) -> Sequence[TypeRecord]:
         """The tactical modes a hull can be in.
 
         For example the Hecate's Defense, Propulsion and Sharpshooter Mode. Return an
@@ -235,7 +235,7 @@ class MutaplasmidCatalog(Catalog, Protocol):
     The `mutaplasmids()` method is optional. Leave it out and no type has mutaplasmids.
     """
 
-    def mutaplasmids(self, type_id: int) -> Sequence[MutaplasmidRecord]:
+    def mutaplasmids(self, type_id: int, /) -> Sequence[MutaplasmidRecord]:
         """The mutaplasmids that can be applied to a type.
 
         See `MutaplasmidRecord` for where they come from. Return an empty list for a type
