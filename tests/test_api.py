@@ -159,11 +159,6 @@ def test_binary_round_trip():
             [fit(Entry(DAMAGE_CONTROL, overrides={50: 10**400}))], "not finite", id="override-huge"
         ),
         pytest.param(
-            [fit(Entry(AVATAR_UNPUBLISHED, location=Location.CARGO))],
-            "not what its name resolves to",
-            id="id-shadowed",
-        ),
-        pytest.param(
             [fit(Entry(RIFTER, fit_name="Buffer"), name="Buffer")],
             "cannot contain itself",
             id="contains-itself",
@@ -256,6 +251,19 @@ def test_shared_name_published_wins():
     assert save([fit(Entry(AVATAR, location=Location.CARGO))], CATALOG).endswith("Avatar\n")
 
 
+def test_shared_name_by_type_id():
+    shadowed = fit(Entry(AVATAR_UNPUBLISHED))
+    text = save([shadowed], CATALOG)
+    assert text == "%esf/1\nRifter\n\n#50097\n"
+    assert load(text, CATALOG) == [shadowed]
+    assert load(save_binary([shadowed], CATALOG), CATALOG) == [shadowed]
+
+
+def test_load_type_id():
+    [loaded] = load("%esf/1\n#587\n#2889 :#21898\n", CATALOG)
+    assert loaded == fit(Entry(AUTOCANNON, charge=EMP))
+
+
 @pytest.mark.parametrize(
     ("data", "message"),
     [
@@ -267,6 +275,9 @@ def test_shared_name_published_wins():
             "too large",
             id="merged-count-too-large",
         ),
+        pytest.param("%esf/1\nRifter\n#4294967296\n", "type ID is too large", id="type-id-huge"),
+        pytest.param("%esf/1\nRifter\n#999999999\n", "unknown type ID", id="type-id-unknown"),
+        pytest.param("%esf/1\nRifter\n#4294967295\n", "unknown type ID", id="type-id-largest"),
     ],
 )
 def test_load_invalid(data: bytes | str, message: str):

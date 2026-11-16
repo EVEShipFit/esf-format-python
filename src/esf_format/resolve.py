@@ -86,7 +86,12 @@ def mode_name(hull: TypeRecord, mode: TypeRecord) -> str:
     return mode.name[len(hull.name) :].lstrip(" ")
 
 
-def _type(catalog: Catalog, name: str, line: int) -> TypeRecord:
+def _type(catalog: Catalog, name: str | int, line: int) -> TypeRecord:
+    if isinstance(name, int):
+        t = catalog.type_by_id(name)
+        if t is None:
+            raise EsfError(f"unknown type ID #{name}", line)
+        return t
     t = catalog.type(fold(name))
     if t is None:
         raise EsfError(f"unknown type {name!r}", line)
