@@ -198,6 +198,8 @@ class Catalog(Protocol):
     def attribute(self, folded_name: str, /) -> AttributeRecord | None:
         """Finds an attribute by its name, like "speedfactor".
 
+        Used to read attribute overrides, like the rolls on an abyssal module.
+
         This works the same way as `type()`: the name is already case-folded with
         `esf_format.fold()`, unpublished attributes count too, and where names are shared,
         the published one wins, then the lowest ID. `esf_format.sde.name_index()` builds
@@ -208,7 +210,12 @@ class Catalog(Protocol):
         ...
 
     def attribute_by_id(self, attribute_id: int, /) -> AttributeRecord | None:
-        """Finds an attribute by its ID. Return None if there is no attribute with this ID."""
+        """Finds an attribute by its ID.
+
+        Used to write attribute overrides, like the rolls on an abyssal module.
+
+        Return None if there is no attribute with this ID.
+        """
         ...
 
 
