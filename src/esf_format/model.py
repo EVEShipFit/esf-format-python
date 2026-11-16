@@ -30,7 +30,7 @@ class Location(StrEnum):
     So a drone with no location is out in space, and a fighter is in a launch tube. Set
     BAY to keep either one in its bay.
 
-    The racks, HIGH to SVC, are for empty slots, and for an item put in a given
+    The racks, HIGH to SVC and TUBE, are for empty slots, and for an item put in a given
     `Entry.slot`. Otherwise, an item never names its rack.
     The holds, AMMO to SUBSYSTEM, only make sense on a hull that has that hold, but the
     library does not check that.
@@ -117,6 +117,9 @@ class Location(StrEnum):
     SUBSYSTEM = "subsystem"
     """The Subsystem Hold, for spare subsystems. Not the same as SUB, which is the rack."""
 
+    TUBE = "tube"
+    """The fighter launch tubes."""
+
 
 @dataclass
 class Entry:
@@ -191,7 +194,8 @@ class Entry:
     """The slot in the `location` rack, counting from 1, like 3 for the third high slot.
 
     Set `location` to the rack too, and the item must go in that rack. A slot can't be
-    combined with `count`, and each slot in a rack can be pinned only once. None means the
+    combined with `count`, except for a fighter in `Location.TUBE`, where the count is
+    the squadron's size. Each slot in a rack can be pinned only once. None means the
     next free slot. `esf_format.load()` never sets this: it gives the rack in slot order,
     with empty slots in between.
     """

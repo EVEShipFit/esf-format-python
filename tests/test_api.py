@@ -31,6 +31,8 @@ DECAYED_DAMAGE_CONTROL_MUTAPLASMID = 52224
 AVATAR = 11567
 AVATAR_UNPUBLISHED = 50097
 SMALL_SECURE_CONTAINER = 3467
+NYX = 23913
+TEMPLAR = 40556
 
 
 def fit(*entries: Entry, **kwargs) -> EsfFit:
@@ -201,6 +203,28 @@ def test_save_slots():
         Entry(None, location=Location.LOW),
         Entry(DAMAGE_CONTROL),
     ]
+
+
+def test_save_tubes():
+    nyx = EsfFit(
+        NYX,
+        entries=[
+            Entry(TEMPLAR, count=1, location=Location.TUBE, slot=3),
+            Entry(TEMPLAR),
+            Entry(None, location=Location.TUBE, slot=2),
+            Entry(TEMPLAR),
+        ],
+    )
+    text = save([nyx], CATALOG)
+    assert text == "%esf/1\nNyx\n\nTemplar II\n- @tube\n1x Templar II\nTemplar II\n"
+    [loaded] = load(text, CATALOG)
+    assert loaded.entries == [
+        Entry(TEMPLAR),
+        Entry(None, location=Location.TUBE),
+        Entry(TEMPLAR, count=1),
+        Entry(TEMPLAR),
+    ]
+    assert load(save_binary([nyx], CATALOG), CATALOG) == [loaded]
 
 
 def test_save_slot_after_other_type():
