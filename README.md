@@ -110,6 +110,21 @@ TypeRecord(
 [examples/sde_jsonl_catalog.py](https://github.com/EVEShipFit/esf-format-python/blob/main/examples/sde_jsonl_catalog.py)
 is a complete example on the official SDE in JSONL: copy it into your project.
 
+## ESI
+
+ESI gives each item in a ship a `location_flag`. `esf_format.esi` turns it
+into a location and a slot:
+
+```python
+from esf_format import Entry, Location, esi
+
+Entry(type_id, location=esi.location(flag) or Location.CARGO, slot=esi.slot(flag))
+```
+
+`HiSlot2` gives `HIGH` and slot 3, and `ShipHangar` gives `MAINTENANCE`.
+A flag that is not inside a ship, like `Hangar`, gives None; the example puts
+those items in the cargo hold.
+
 ## Tests
 
 The test cases live in [esf-format](https://github.com/EVEShipFit/esf-format):
