@@ -11,7 +11,6 @@ from .names import fold, shortest_unique
 from .resolve import (
     DEFAULT_PLACES,
     DRONES,
-    FIGHTERS,
     PLUGGED,
     EmptySlot,
     Fit,
@@ -19,9 +18,9 @@ from .resolve import (
     default_place,
     mode_name,
 )
-from .text import HOLDS, RACKS, SIGILS, UINT32_MAX, is_count
+from .text import HOLDS, PINNABLE, RACKS, SIGILS, TUBE, UINT32_MAX, is_count
 
-GROUPS = (*RACKS, DRONES, FIGHTERS, Location.CARGO, *HOLDS, *PLUGGED)
+GROUPS = (*RACKS, DRONES, TUBE, Location.CARGO, *HOLDS, *PLUGGED)
 
 
 @dataclass
@@ -147,7 +146,7 @@ def _line(item: Item, fit: Fit, catalog: Catalog) -> CanonLine:
     if line.state is not None and line.state != _default_state(item):
         out.state = line.state
 
-    if item.place != default_place(item.type.kind, fit.cargo_only) and item.place not in RACKS:
+    if item.place != default_place(item.type.kind, fit.cargo_only) and item.place not in PINNABLE:
         out.location = item.place
     return out
 
@@ -167,8 +166,8 @@ def _collapse(lines: list[tuple[bool, CanonLine]]) -> list[CanonLine]:
                 raise EsfError(f"lines collapse into a count of {prev.count}, which is too large")
             continue
         out.append((repeatable, line))
-    for _, line in out:
-        if line.count == 1:
+    for repeatable, line in out:
+        if repeatable and line.count == 1:
             line.count = None
     return [line for _, line in out]
 
@@ -180,11 +179,13 @@ def _rack(fit: Fit, rack: str, catalog: Catalog) -> list[CanonLine]:
     lines = []
     for run in runs:
         if run.item is None:
-            line = CanonLine(None, location=rack)
+            lines.append((True, CanonLine(None, location=rack, count=run.length)))
+        elif rack == TUBE:
+            lines.append((False, _squadron(run.item, fit, catalog)))
         else:
             line = _line(run.item, fit, catalog)
-        line.count = run.length
-        lines.append((True, line))
+            line.count = run.length
+            lines.append((True, line))
     return _collapse(lines)
 
 
@@ -205,16 +206,16 @@ def _sorted(items: list[Item], fit: Fit, catalog: Catalog) -> list[CanonLine]:
     return _collapse([(repeatable, line) for _, repeatable, line in lines])
 
 
+def _squadron(item: Item, fit: Fit, catalog: Catalog) -> CanonLine:
+    line = _line(item, fit, catalog)
+    count = item.line.count
+    if count is not None and count != item.type.squadron_size:
+        line.count = count
+    return line
+
+
 def _fighters(items: list[Item], fit: Fit, catalog: Catalog) -> list[CanonLine]:
-    tubes = [i for i in items if i.place == FIGHTERS]
-    lines = []
-    for item in tubes:
-        line = _line(item, fit, catalog)
-        count = item.line.count
-        if count is not None and count != item.type.squadron_size:
-            line.count = count
-        lines.append(line)
-    return lines + _sorted([i for i in items if i.place == Location.BAY], fit, catalog)
+    return _rack(fit, TUBE, catalog) + _sorted(items, fit, catalog)
 
 
 def _drones(items: list[Item], fit: Fit, catalog: Catalog) -> list[CanonLine]:
@@ -225,7 +226,7 @@ def _drones(items: list[Item], fit: Fit, catalog: Catalog) -> list[CanonLine]:
 def canonical_fit(fit: Fit, catalog: Catalog) -> CanonFit:
     groups: dict[str, list[Item]] = {}
     for item in fit.items:
-        if isinstance(item, EmptySlot) or item.place in RACKS:
+        if isinstance(item, EmptySlot) or item.place in PINNABLE:
             continue
         group = item.place
         if group == Location.BAY:
@@ -238,7 +239,7 @@ def canonical_fit(fit: Fit, catalog: Catalog) -> CanonFit:
             chunk = _rack(fit, group, catalog)
         elif group == DRONES:
             chunk = _drones(groups.get(group, []), fit, catalog)
-        elif group == FIGHTERS:
+        elif group == TUBE:
             chunk = _fighters(groups.get(group, []), fit, catalog)
         else:
             chunk = _sorted(groups.get(group, []), fit, catalog)

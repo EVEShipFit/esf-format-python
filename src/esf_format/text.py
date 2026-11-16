@@ -8,6 +8,8 @@ from .errors import EsfError
 
 SIGILS = frozenset(':+{!@/"')
 RACKS = ("sub", "high", "mid", "low", "rig", "svc")
+TUBE = "tube"
+PINNABLE = (*RACKS, TUBE)
 HOLDS = (
     "ammo",
     "booster",
@@ -174,10 +176,10 @@ class _Cursor:
         self.i = match.end()
         name, index = match.group(1), match.group(2)
         if index:
-            if name not in RACKS:
+            if name not in PINNABLE:
                 self.error(f"unknown rack {name!r}")
             return name, self.positive(index, "a slot number")
-        if name not in STORED and name not in RACKS:
+        if name not in STORED and name not in PINNABLE:
             self.error(f"unknown location {name!r}")
         return name, None
 
@@ -239,7 +241,7 @@ def _entry(cur: _Cursor) -> EmptyLine | ItemLine:
         if not cur.next_element() or cur.peek() != "@":
             cur.error("an empty slot must name its rack")
         rack, index = cur.location()
-        if rack not in RACKS:
+        if rack not in PINNABLE:
             cur.error("an empty slot must name a rack")
         if index is not None and count is not None:
             cur.error("a count and a pinned slot are mutually exclusive")
@@ -286,7 +288,7 @@ def _entry(cur: _Cursor) -> EmptyLine | ItemLine:
             line.location, line.index = cur.location()
             if line.index is None and line.location not in STORED:
                 cur.error("an item names a rack only to pin a slot, which needs an index")
-            if line.index is not None and count is not None:
+            if line.index is not None and count is not None and line.location != TUBE:
                 cur.error("a count and a pinned slot are mutually exclusive")
             stage = 5
         else:

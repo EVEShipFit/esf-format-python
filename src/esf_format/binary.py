@@ -39,6 +39,7 @@ LOCATIONS = {
     Location.PLANETARY: 25,
     Location.QUAFE: 26,
     Location.SUBSYSTEM: 27,
+    Location.TUBE: 28,
 }
 
 

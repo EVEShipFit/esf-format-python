@@ -7,7 +7,7 @@ from .catalog import Catalog
 from .errors import EsfError
 from .model import Entry, EsfFit
 from .resolve import EmptySlot, Fit
-from .text import RACKS
+from .text import PINNABLE
 
 
 def _name(text: str) -> str:
@@ -41,9 +41,9 @@ def _entry(e: Entry, catalog: Catalog) -> str:
         raise EsfError("a slot must be a whole number")
     if e.slot is not None and e.slot < 1:
         raise EsfError("a slot must be at least 1")
-    if e.slot is not None and e.location not in RACKS:
+    if e.slot is not None and e.location not in PINNABLE:
         raise EsfError("a slot needs the rack it is in")
-    if e.type is not None and e.slot is None and e.location in RACKS:
+    if e.type is not None and e.slot is None and e.location in PINNABLE:
         raise EsfError("an item names a rack only to pin a slot")
     if e.charge_count is not None and e.charge is None:
         raise EsfError("a charge count is set without a charge")

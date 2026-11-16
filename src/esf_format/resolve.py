@@ -11,17 +11,16 @@ from .catalog import AttributeRecord, Catalog, Kind, MutaplasmidRecord, TypeReco
 from .errors import EsfError
 from .model import Location
 from .names import fold, is_word_prefix
-from .text import RACKS, STORED, EmptyLine, FitBlock, ItemLine
+from .text import PINNABLE, RACKS, STORED, TUBE, EmptyLine, FitBlock, ItemLine
 
 DRONES = "drones"
-FIGHTERS = "fighters"
 IMPLANTS = "implants"
 BOOSTERS = "boosters"
 PLUGGED = (IMPLANTS, BOOSTERS)
 DEFAULT_PLACES = {
     **{Kind(rack): rack for rack in RACKS},
     Kind.DRONE: DRONES,
-    Kind.FIGHTER: FIGHTERS,
+    Kind.FIGHTER: TUBE,
     Kind.IMPLANT: IMPLANTS,
     Kind.BOOSTER: BOOSTERS,
 }
@@ -247,7 +246,8 @@ def _layout(items: list[Item | EmptySlot]) -> list[Run]:
     for item in items:
         if item.line.index is not None:
             continue
-        remaining = item.line.count or 1
+        squadron = isinstance(item, Item) and item.place == TUBE
+        remaining = 1 if squadron else item.line.count or 1
         while remaining:
             while pos in pinned:
                 pos += 1
@@ -286,7 +286,7 @@ def resolve(blocks: list[FitBlock], catalog: Catalog) -> list[Fit]:
             plugged.add(item.type.id)
     _check_cycles(fits)
     for fit in fits:
-        for rack in RACKS:
+        for rack in PINNABLE:
             items = [i for i in fit.items if i.place == rack]
             if items:
                 fit.racks[rack] = _layout(items)
