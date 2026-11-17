@@ -159,7 +159,7 @@ class MutaplasmidRecord:
     """The mutaplasmid's own type: the type whose ID is the entry's `_key`."""
 
     rolls: tuple[tuple[int, float], ...]
-    """The dogma attributes the mutaplasmid changes, each with the base type's value before the change.
+    """The dogma attributes the mutaplasmid changes, each with the base type's unchanged value.
 
     Each pair is an attribute ID and a value. The attribute IDs are the `_key` of each
     item in the entry's `attributeIDs`; its `min` and `max` are not needed. Each value is
