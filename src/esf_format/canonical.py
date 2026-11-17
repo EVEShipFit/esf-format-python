@@ -18,7 +18,7 @@ from .resolve import (
     default_place,
     mode_name,
 )
-from .text import HOLDS, PINNABLE, RACKS, SIGILS, TUBE, UINT32_MAX, is_count, is_type_id
+from .text import HOLDS, PINNABLE, RACKS, SIGILS, TUBE, UINT32_MAX, ends_in_type_id, is_count
 
 GROUPS = (*RACKS, DRONES, TUBE, Location.CARGO, *HOLDS, *PLUGGED)
 
@@ -96,7 +96,7 @@ def needs_quotes(name: str) -> bool:
     return (
         words[0][:1] in ("-", "%", "")
         or is_count(words[0])
-        or is_type_id(name)
+        or ends_in_type_id(name)
         or any(w[:1] in SIGILS or w == "" for w in words)
     )
 
@@ -106,11 +106,12 @@ def quote_type(name: str) -> str:
 
 
 def type_ref(catalog: Catalog, t: TypeRecord) -> str:
-    """A type as text: its name, or its ID where the name resolves to another type (§6.13)."""
+    """A type as text: its name, and its ID where the name resolves to another type (§6.13)."""
+    name = quote_type(t.name)
     found = catalog.type(fold(t.name))
     if found is not None and found.id == t.id:
-        return quote_type(t.name)
-    return f"#{t.id}"
+        return name
+    return f"{name}#{t.id}"
 
 
 def number(value: float) -> str:
