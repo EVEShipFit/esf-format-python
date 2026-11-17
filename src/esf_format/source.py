@@ -4,7 +4,7 @@ import math
 
 from .canonical import number, quote, quote_type, type_ref
 from .catalog import Catalog, TypeRecord
-from .errors import EsfError
+from .errors import EsfCatalogError, EsfError, EsfFormatError, EsfRuleError
 from .model import Entry, EsfFit
 from .resolve import EmptySlot, Fit
 from .text import PINNABLE
@@ -12,14 +12,14 @@ from .text import PINNABLE
 
 def _name(text: str) -> str:
     if "\r" in text or "\n" in text:
-        raise EsfError("a fit name contains CR or LF")
+        raise EsfFormatError("a fit name contains CR or LF")
     return quote(text)
 
 
 def _type(catalog: Catalog, type_id: int, what: str) -> TypeRecord:
     t = catalog.type_by_id(type_id)
     if t is None:
-        raise EsfError(f"unknown {what} type ID {type_id}")
+        raise EsfCatalogError(f"unknown {what} type ID {type_id}")
     return t
 
 
@@ -37,24 +37,24 @@ def _number(value: float) -> str:
     except OverflowError:
         finite = False
     if not finite:
-        raise EsfError("an override value is not finite")
+        raise EsfRuleError("an override value is not finite")
     return number(float(value))
 
 
 def _entry(e: Entry, catalog: Catalog) -> str:
     for n in (e.count, e.charge_count):
         if n is not None and n < 1:
-            raise EsfError("a count must be at least 1")
+            raise EsfRuleError("a count must be at least 1")
     if e.slot is not None and (isinstance(e.slot, bool) or not isinstance(e.slot, int)):
-        raise EsfError("a slot must be a whole number")
+        raise EsfRuleError("a slot must be a whole number")
     if e.slot is not None and e.slot < 1:
-        raise EsfError("a slot must be at least 1")
+        raise EsfRuleError("a slot must be at least 1")
     if e.slot is not None and e.location not in PINNABLE:
-        raise EsfError("a slot needs the rack it is in")
+        raise EsfRuleError("a slot needs the rack it is in")
     if e.type is not None and e.slot is None and e.location in PINNABLE:
-        raise EsfError("an item names a rack only to pin a slot")
+        raise EsfRuleError("an item names a rack only to pin a slot")
     if e.charge_count is not None and e.charge is None:
-        raise EsfError("a charge count is set without a charge")
+        raise EsfRuleError("a charge count is set without a charge")
 
     parts = []
     if e.count is not None:
@@ -72,7 +72,7 @@ def _entry(e: Entry, catalog: Catalog) -> str:
         for attribute_id, value in e.overrides.items():
             attribute = catalog.attribute_by_id(attribute_id)
             if attribute is None:
-                raise EsfError(f"unknown attribute ID {attribute_id}")
+                raise EsfCatalogError(f"unknown attribute ID {attribute_id}")
             pairs.append(f"{attribute.name} {_number(value)}")
         parts.append("{" + ", ".join(pairs) + "}")
     if e.state is not None:
@@ -94,20 +94,20 @@ def _hull(fit: EsfFit, catalog: Catalog) -> str:
 def source(fits: list[EsfFit], catalog: Catalog) -> tuple[bytes, list[tuple[int, int | None]]]:
     """The text document the fits stand for, and the (fit, entry) each line is."""
     if not fits:
-        raise EsfError("a document holds at least one fit")
+        raise EsfFormatError("a document holds at least one fit")
     out = []
     where: list[tuple[int, int | None]] = []
     for n, fit in enumerate(fits, 1):
         try:
             out += ["%esf/1", _hull(fit, catalog)]
         except EsfError as e:
-            raise EsfError(e.message, fit=n) from None
+            raise e._at(n) from None
         where += [(n, None), (n, None)]
         for m, entry in enumerate(fit.entries, 1):
             try:
                 out.append(_entry(entry, catalog))
             except EsfError as e:
-                raise EsfError(e.message, fit=n, entry=m) from None
+                raise e._at(n, m) from None
             where.append((n, m))
     return "".join(line + "\n" for line in out).encode(), where
 
@@ -115,7 +115,7 @@ def source(fits: list[EsfFit], catalog: Catalog) -> tuple[bytes, list[tuple[int,
 def _same(got: object, want: int | None, what: str) -> None:
     got_id = getattr(got, "id", None)
     if got_id != want:
-        raise EsfError(f"{what} ID {want} is not what its name resolves to ({got_id})")
+        raise EsfRuleError(f"{what} ID {want} is not what its name resolves to ({got_id})")
 
 
 def verify(resolved: list[Fit], fits: list[EsfFit]) -> None:
@@ -125,7 +125,7 @@ def verify(resolved: list[Fit], fits: list[EsfFit]) -> None:
             _same(fit.hull, given.hull, "hull")
             _same(fit.mode, given.mode, "tactical mode")
         except EsfError as e:
-            raise EsfError(e.message, fit=n) from None
+            raise e._at(n) from None
         for m, (item, entry) in enumerate(zip(fit.items, given.entries), 1):
             if isinstance(item, EmptySlot):
                 continue
@@ -135,6 +135,6 @@ def verify(resolved: list[Fit], fits: list[EsfFit]) -> None:
                 _same(item.mutaplasmid and item.mutaplasmid.type, entry.mutaplasmid, "mutaplasmid")
                 got = [a.id for a, _ in item.overrides]
                 if got != list(entry.overrides):
-                    raise EsfError(f"attribute IDs {list(entry.overrides)} resolve to {got}")
+                    raise EsfRuleError(f"attribute IDs {list(entry.overrides)} resolve to {got}")
             except EsfError as e:
-                raise EsfError(e.message, fit=n, entry=m) from None
+                raise e._at(n, m) from None

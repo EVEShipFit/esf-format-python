@@ -4,7 +4,7 @@ import struct
 from collections.abc import Iterator
 from typing import Any
 
-from .errors import EsfError
+from .errors import EsfFormatError
 
 VARINT, I64, LEN, SGROUP, EGROUP, I32 = range(6)
 U64 = (1 << 64) - 1
@@ -49,7 +49,7 @@ class Reader:
 
     def take(self, n: int) -> bytes:
         if self.pos + n > len(self.data):
-            raise EsfError("binary: not valid Protocol Buffers (cut short)")
+            raise EsfFormatError("binary: not valid Protocol Buffers (cut short)")
         out = self.data[self.pos : self.pos + n]
         self.pos += n
         return out
@@ -61,13 +61,13 @@ class Reader:
             value |= (byte & 0x7F) << shift
             if not byte & 0x80:
                 return value & U64
-        raise EsfError("binary: not valid Protocol Buffers (varint is too long)")
+        raise EsfFormatError("binary: not valid Protocol Buffers (varint is too long)")
 
     def key(self) -> tuple[int, int]:
         k = self.varint()
         field, wire = k >> 3, k & 7
         if field == 0 or k > 0xFFFFFFFF or wire > I32:
-            raise EsfError(f"binary: not valid Protocol Buffers (bad key {k})")
+            raise EsfFormatError(f"binary: not valid Protocol Buffers (bad key {k})")
         return field, wire
 
     def value(self, field: int, wire: int) -> int | bytes | None:
@@ -83,7 +83,7 @@ class Reader:
         if wire == SGROUP:
             self.skip_group(field)
             return None
-        raise EsfError("binary: not valid Protocol Buffers (unmatched end group)")
+        raise EsfFormatError("binary: not valid Protocol Buffers (unmatched end group)")
 
     def skip_group(self, field: int) -> None:
         open_groups = [field]
@@ -93,7 +93,7 @@ class Reader:
                 open_groups.append(inner)
             elif inner_wire == EGROUP:
                 if open_groups.pop() != inner:
-                    raise EsfError("binary: not valid Protocol Buffers (unmatched end group)")
+                    raise EsfFormatError("binary: not valid Protocol Buffers (unmatched end group)")
             else:
                 self.value(inner, inner_wire)
 
@@ -116,5 +116,5 @@ def unpack_uints(payload: bytes) -> list[int]:
 
 def unpack_doubles(payload: bytes) -> list[float]:
     if len(payload) % 8:
-        raise EsfError("binary: not valid Protocol Buffers (packed doubles cut short)")
+        raise EsfFormatError("binary: not valid Protocol Buffers (packed doubles cut short)")
     return list(struct.unpack(f"<{len(payload) // 8}d", payload))
