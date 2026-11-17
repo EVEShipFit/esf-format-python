@@ -70,7 +70,7 @@ Each `Entry` is one line of the fit. `None` means the default:
 | `charge` | The charge loaded. | |
 | `charge_count` | How many charges. | A full load. |
 | `mutaplasmid` | The mutaplasmid applied. | |
-| `overrides` | Attribute values by attribute ID. | |
+| `overrides` | Dogma attribute values by attribute ID. | |
 | `state` | `State.OFF`, `ON` or `HEAT`. | Active if the type can be, else on. |
 | `location` | `CARGO`, `BAY` or another hold; a rack, like `HIGH` or `TUBE`, for an empty slot or with `slot`. | Where the type goes by default. |
 | `slot` | The slot in the `location` rack, counting from 1. `load()` never sets it: it returns the rack in slot order, with empty slots between. | The next free slot. |
@@ -78,7 +78,7 @@ Each `Entry` is one line of the fit. `None` means the default:
 ## The Catalog
 
 The library holds no game data. You give it a `Catalog`: an object that looks
-up types and attributes in your copy of the SDE.
+up types and dogma attributes in your copy of the SDE.
 
 ```python
 class MyCatalog:
@@ -102,7 +102,7 @@ type_names = sde.name_index(
     types, lambda t: t["_key"], lambda t: t["name"]["en"], lambda t: t.get("published", False)
 )
 
-# effects: effectID -> effectCategoryID; attributes: attributeID -> value
+# effects: effectID -> effectCategoryID; attributes: dogma attributeID -> value
 
 TypeRecord(
     id=t["_key"],

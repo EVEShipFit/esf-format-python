@@ -108,7 +108,7 @@ def name_index(
 ) -> dict[str, int]:
     """Builds the name store that `Catalog.type()` and `Catalog.attribute()` look names up in.
 
-    Give it every type, or every attribute, including unpublished ones, and a function
+    Give it every type, or every dogma attribute, including unpublished ones, and a function
     for each of its ID, name and whether it is published. Each name is case-folded with
     `esf_format.fold()`, the same way the library does with the names in a fit. Where
     names are shared, the published one wins, then the lowest ID (§4.2). In the SDE, a
