@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from . import catalog as cat
 from .catalog import AttributeRecord, Catalog, MutaplasmidRecord, TypeRecord
-from .errors import EsfError
+from .errors import EsfRuleError
 from .model import Entry, EsfFit, Location, State
 from .names import fold, shortest_unique
 from .resolve import (
@@ -177,7 +177,9 @@ def _collapse(lines: list[tuple[bool, CanonLine]]) -> list[CanonLine]:
             prev = out[-1][1]
             prev.count = (prev.count or 1) + (line.count or 1)
             if prev.count > UINT32_MAX:
-                raise EsfError(f"lines collapse into a count of {prev.count}, which is too large")
+                raise EsfRuleError(
+                    f"lines collapse into a count of {prev.count}, which is too large"
+                )
             continue
         out.append((repeatable, line))
     for repeatable, line in out:

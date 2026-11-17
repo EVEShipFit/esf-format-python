@@ -43,8 +43,16 @@ data = esf_format.from_base64url(url)
 
 `save()` and `save_binary()` take entries in any order, and check every rule
 of the spec. `load()` returns fits in canonical form. All three raise
-`esf_format.EsfError` when a rule is broken. It says where: `line` for text,
+`esf_format.EsfError` when the data or a fit is not valid. It says where: `line` for text,
 or `fit` and `entry` (counting from 1) for fits.
+
+Catch a subclass to handle one kind of error:
+
+| Error | When |
+|---|---|
+| `EsfFormatError` | The data is not a well-formed document: broken text, binary or base64url, or a fit name that cannot be written. |
+| `EsfCatalogError` | The catalog does not know a name or ID, or a name matches more than one type. |
+| `EsfRuleError` | The fit breaks a rule, like a module in the wrong rack. |
 
 ## Fits
 

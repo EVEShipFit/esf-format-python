@@ -7,7 +7,7 @@ from . import wire
 from .model import Entry, EsfFit, Location, State
 
 T = TypeVar("T")
-from .errors import EsfError
+from .errors import EsfFormatError, EsfRuleError
 from .text import UINT32_MAX
 
 STATES = {State.OFF: 1, State.ON: 2, State.HEAT: 3}
@@ -85,7 +85,7 @@ def encode(fits: list[EsfFit]) -> bytes:
 
 def _uint32(value: int, what: str) -> int:
     if value > UINT32_MAX:
-        raise EsfError(f"binary: {what} is out of range")
+        raise EsfFormatError(f"binary: {what} is out of range")
     return value
 
 
@@ -93,7 +93,7 @@ def _string(payload: bytes, what: str) -> str | None:
     try:
         return payload.decode("utf-8") or None
     except UnicodeDecodeError:
-        raise EsfError(f"binary: {what} is not valid UTF-8") from None
+        raise EsfFormatError(f"binary: {what} is not valid UTF-8") from None
 
 
 def _enum(numbers: dict[T, int], value: int, what: str) -> T | None:
@@ -102,11 +102,11 @@ def _enum(numbers: dict[T, int], value: int, what: str) -> T | None:
     for member, number in numbers.items():
         if number == value:
             return member
-    raise EsfError(f"binary: unknown {what} value {value}")
+    raise EsfFormatError(f"binary: unknown {what} value {value}")
 
 
-def _not_in_schema(what: str) -> EsfError:
-    return EsfError(f"binary: {what} has a field that is not in the schema")
+def _not_in_schema(what: str) -> EsfFormatError:
+    return EsfFormatError(f"binary: {what} has a field that is not in the schema")
 
 
 def _decode_entry(data: bytes) -> Entry:
@@ -144,10 +144,10 @@ def _decode_entry(data: bytes) -> Entry:
             case _:
                 raise _not_in_schema("Entry")
     if len(attributes) != len(values):
-        raise EsfError("binary: override fields have different lengths")
+        raise EsfFormatError("binary: override fields have different lengths")
     e.overrides = dict(zip(attributes, values))
     if len(e.overrides) != len(attributes):
-        raise EsfError("binary: an attribute is overridden twice")
+        raise EsfRuleError("binary: an attribute is overridden twice")
     return e
 
 
@@ -169,7 +169,7 @@ def _decode_fit(data: bytes) -> EsfFit:
             case _:
                 raise _not_in_schema("Fit")
     if version != 1:
-        raise EsfError(f"binary: unsupported Fit.version {version}")
+        raise EsfFormatError(f"binary: unsupported Fit.version {version}")
     return fit
 
 
@@ -179,8 +179,8 @@ def decode(data: bytes) -> list[EsfFit]:
         if tag != 1:
             continue
         if wire_type != wire.LEN:
-            raise EsfError("binary: Document.fits has the wrong wire type")
+            raise EsfFormatError("binary: Document.fits has the wrong wire type")
         fits.append(_decode_fit(value))
     if not fits:
-        raise EsfError("binary: a document holds at least one fit")
+        raise EsfFormatError("binary: a document holds at least one fit")
     return fits

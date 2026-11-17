@@ -6,8 +6,11 @@ from catalog import JsonCatalog
 
 from esf_format import (
     Entry,
+    EsfCatalogError,
     EsfError,
     EsfFit,
+    EsfFormatError,
+    EsfRuleError,
     Kind,
     Location,
     State,
@@ -242,10 +245,31 @@ def test_binary_slots():
 
 
 def test_error_location():
-    with pytest.raises(EsfError) as error:
+    with pytest.raises(EsfCatalogError) as error:
         save([fit(), fit(Entry(AUTOCANNON), Entry(999_999_999))], CATALOG)
     assert (error.value.fit, error.value.entry, error.value.line) == (2, 2, None)
     assert str(error.value).startswith("fit 2, entry 2: ")
+
+
+def test_error_location_of_a_resolved_fit():
+    with pytest.raises(EsfRuleError) as error:
+        save([fit(), EsfFit(EMP)], CATALOG)
+    assert str(error.value) == "fit 2: 'Republic Fleet EMP S' is not a ship, structure or container"
+
+
+def test_error_kinds():
+    with pytest.raises(EsfFormatError):
+        load("%esf/1\n2x Rifter\n", CATALOG)
+    with pytest.raises(EsfFormatError):
+        load(b"\x0a", CATALOG)
+    with pytest.raises(EsfCatalogError):
+        load("%esf/1\nRifter\nDamage Control II {nope 1}\n", CATALOG)
+    with pytest.raises(EsfRuleError):
+        load("%esf/1\nRifter\nDamage Control II @bay\n", CATALOG)
+    with pytest.raises(EsfRuleError):
+        save([fit(Entry(AUTOCANNON, count=0))], CATALOG)
+    with pytest.raises(EsfFormatError):
+        save([fit(name="a\nb")], CATALOG)
 
 
 def test_empty_name_is_no_name():
@@ -319,7 +343,7 @@ def test_base64url():
     url = to_base64url(data)
     assert "=" not in url
     assert from_base64url(url) == data
-    with pytest.raises(EsfError):
+    with pytest.raises(EsfFormatError):
         from_base64url("not base64url!")
 
 

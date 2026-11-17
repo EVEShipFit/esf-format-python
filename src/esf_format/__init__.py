@@ -14,7 +14,7 @@ from .catalog import (
     MutaplasmidRecord,
     TypeRecord,
 )
-from .errors import EsfError
+from .errors import EsfCatalogError, EsfError, EsfFormatError, EsfRuleError
 from .model import Entry, EsfFit, Location, State
 from .names import fold
 
@@ -22,8 +22,11 @@ __all__ = [
     "AttributeRecord",
     "Catalog",
     "Entry",
+    "EsfCatalogError",
     "EsfError",
     "EsfFit",
+    "EsfFormatError",
+    "EsfRuleError",
     "Kind",
     "Location",
     "ModeCatalog",
@@ -67,7 +70,7 @@ def _checked(fits: list[EsfFit], catalog: Catalog) -> list[CanonFit]:
         if e.line is None:
             raise
         fit, entry = where[e.line - 1]
-        raise EsfError(e.message, fit=fit, entry=entry) from None
+        raise e._at(fit, entry) from None
 
 
 def load(data: bytes | str, catalog: Catalog) -> list[EsfFit]:
@@ -75,7 +78,7 @@ def load(data: bytes | str, catalog: Catalog) -> list[EsfFit]:
     if isinstance(data, str):
         data = data.encode("utf-8", "surrogatepass")
     if not data:
-        raise EsfError("the document is empty")
+        raise EsfFormatError("the document is empty")
     if is_text(data):
         fits = _canonical(text.parse(data), catalog)
     else:
@@ -102,5 +105,5 @@ def from_base64url(encoded: str) -> bytes:
     """The binary form from base64url without padding (§10.4)."""
     encoded = encoded.strip()
     if not _BASE64URL.fullmatch(encoded) or len(encoded) % 4 == 1:
-        raise EsfError("not valid base64url")
+        raise EsfFormatError("not valid base64url")
     return base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))

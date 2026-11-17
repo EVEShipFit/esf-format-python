@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, field
 from typing import NamedTuple, NoReturn
 
-from .errors import EsfError
+from .errors import EsfFormatError
 
 SIGILS = frozenset(':+{!@/"')
 RACKS = ("sub", "high", "mid", "low", "rig", "svc")
@@ -98,7 +98,7 @@ class _Cursor:
         self.i = 0
 
     def error(self, message: str) -> NoReturn:
-        raise EsfError(message, self.number)
+        raise EsfFormatError(message, self.number)
 
     def peek(self) -> str:
         return self.s[self.i] if self.i < len(self.s) else ""
@@ -339,7 +339,7 @@ def parse(data: bytes) -> list[FitBlock]:
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as e:
-        raise EsfError(f"not valid UTF-8 at byte {e.start}") from None
+        raise EsfFormatError(f"not valid UTF-8 at byte {e.start}") from None
 
     lines = text.split("\n")
     if lines[-1] == "":
@@ -352,24 +352,24 @@ def parse(data: bytes) -> list[FitBlock]:
     for number, raw in enumerate(lines, 1):
         raw = raw.removesuffix("\r")
         if "\r" in raw:
-            raise EsfError("a CR must be followed by an LF", number)
+            raise EsfFormatError("a CR must be followed by an LF", number)
 
         if raw.lstrip(" ").startswith("%"):
             match = _HEADER.fullmatch(raw)
             if not match:
-                raise EsfError("malformed header", number)
+                raise EsfFormatError("malformed header", number)
             if header is not None:
-                raise EsfError("a fit needs a hull line", header)
+                raise EsfFormatError("a fit needs a hull line", header)
             in_block = True
             current = None
             if match.group(1) == "esf":
                 if match.group(2) != "1":
-                    raise EsfError(f"unsupported version esf/{match.group(2)}", number)
+                    raise EsfFormatError(f"unsupported version esf/{match.group(2)}", number)
                 header = number
             continue
 
         if not in_block:
-            raise EsfError("a document starts with a header", number)
+            raise EsfFormatError("a document starts with a header", number)
         if _is_blank(raw):
             continue
 
@@ -382,7 +382,7 @@ def parse(data: bytes) -> list[FitBlock]:
             current.lines.append(_entry(cur))
 
     if header is not None:
-        raise EsfError("a fit needs a hull line", header)
+        raise EsfFormatError("a fit needs a hull line", header)
     if not fits:
-        raise EsfError("a document holds at least one fit")
+        raise EsfFormatError("a document holds at least one fit")
     return fits

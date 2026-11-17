@@ -8,7 +8,7 @@ from typing import NamedTuple, TypeVar
 
 from . import catalog as cat
 from .catalog import AttributeRecord, Catalog, Kind, MutaplasmidRecord, TypeRecord
-from .errors import EsfError
+from .errors import EsfCatalogError, EsfRuleError
 from .model import Location
 from .names import fold, is_word_prefix
 from .text import PINNABLE, RACKS, STORED, TUBE, EmptyLine, FitBlock, ItemLine, TypeRef
@@ -90,22 +90,22 @@ def _type(catalog: Catalog, ref: TypeRef, line: int) -> TypeRecord:
     if ref.id is not None:
         t = catalog.type_by_id(ref.id)
         if t is None:
-            raise EsfError(f"unknown type ID #{ref.id}", line)
+            raise EsfCatalogError(f"unknown type ID #{ref.id}", line)
         if fold(t.name) != fold(ref.name):
-            raise EsfError(f"type ID #{ref.id} is {t.name!r}, not {ref.name!r}", line)
+            raise EsfRuleError(f"type ID #{ref.id} is {t.name!r}, not {ref.name!r}", line)
         return t
     t = catalog.type(fold(ref.name))
     if t is None:
-        raise EsfError(f"unknown type {ref.name!r}", line)
+        raise EsfCatalogError(f"unknown type {ref.name!r}", line)
     return t
 
 
 def _pick(candidates: list[T], given: str, what: str, line: int, name: Callable[[T], str]) -> T:
     if not candidates:
-        raise EsfError(f"no {what} matches {given!r}", line)
+        raise EsfCatalogError(f"no {what} matches {given!r}", line)
     if len(candidates) > 1:
         names = ", ".join(repr(name(c)) for c in candidates)
-        raise EsfError(f"{given!r} matches more than one {what}: {names}", line)
+        raise EsfCatalogError(f"{given!r} matches more than one {what}: {names}", line)
     return candidates[0]
 
 
@@ -115,13 +115,13 @@ def _resolve_hull(block: FitBlock, catalog: Catalog) -> Fit:
 
     hull = _type(catalog, block.hull, block.hull_line)
     if not hull.kind.can_be_hull:
-        raise EsfError(f"{hull.name!r} is not a ship, structure or container", block.hull_line)
+        raise EsfRuleError(f"{hull.name!r} is not a ship, structure or container", block.hull_line)
 
     mode = None
     if block.mode is not None:
         modes = cat.modes_of(catalog, hull)
         if not modes:
-            raise EsfError(f"{hull.name!r} has no tactical modes", block.hull_line)
+            raise EsfRuleError(f"{hull.name!r} has no tactical modes", block.hull_line)
         matches = [
             m
             for m in modes
@@ -139,47 +139,47 @@ def _resolve_line(
     n = line.number
     if isinstance(line, EmptyLine):
         if fit.cargo_only:
-            raise EsfError("a fit without a ship has no slots to keep empty", n)
+            raise EsfRuleError("a fit without a ship has no slots to keep empty", n)
         return EmptySlot(line)
 
     t = _type(catalog, line.type, n)
     kind = t.kind
     if kind == Kind.MODE:
-        raise EsfError("a tactical mode is only written on the hull line", n)
+        raise EsfRuleError("a tactical mode is only written on the hull line", n)
 
     item = Item(line, t, default_place(kind, fit.cargo_only))
 
     if line.fit_name is not None:
         if not kind.can_be_hull:
-            raise EsfError(f"{t.name!r} cannot take a fit name", n)
+            raise EsfRuleError(f"{t.name!r} cannot take a fit name", n)
         matches = named.get((t.id, fold(line.fit_name)), [])
         if len(matches) != 1:
             what = "no fit" if not matches else "more than one fit"
-            raise EsfError(f"{what} matches {t.name} {line.fit_name!r}", n)
+            raise EsfRuleError(f"{what} matches {t.name} {line.fit_name!r}", n)
         item.reference = matches[0]
 
     if line.location is not None:
         if fit.cargo_only and line.location != Location.CARGO:
-            raise EsfError("a fit without a ship stores everything in cargo", n)
+            raise EsfRuleError("a fit without a ship stores everything in cargo", n)
         if line.index is not None and DEFAULT_PLACES.get(kind) != line.location:
-            raise EsfError(f"{t.name!r} does not go in the {line.location} rack", n)
+            raise EsfRuleError(f"{t.name!r} does not go in the {line.location} rack", n)
         if line.location == Location.BAY and kind not in (Kind.DRONE, Kind.FIGHTER):
-            raise EsfError("@bay is only for drones and fighters", n)
+            raise EsfRuleError("@bay is only for drones and fighters", n)
         item.place = line.location
 
     if item.place in PLUGGED and line.count is not None:
-        raise EsfError("a plugged-in implant or booster takes no count", n)
+        raise EsfRuleError("a plugged-in implant or booster takes no count", n)
 
     if line.state is not None:
         if item.stored:
-            raise EsfError("a stored item has no state", n)
+            raise EsfRuleError("a stored item has no state", n)
         if item.place in PLUGGED and line.state != "off":
-            raise EsfError("an implant or booster takes !off only", n)
+            raise EsfRuleError("an implant or booster takes !off only", n)
 
     if line.charge is not None:
         item.charge = _type(catalog, line.charge, n)
         if item.charge.kind != Kind.CHARGE:
-            raise EsfError(f"{item.charge.name!r} is not a charge", n)
+            raise EsfRuleError(f"{item.charge.name!r} is not a charge", n)
 
     if line.mutaplasmid is not None:
         candidates = cat.mutaplasmids_of(catalog, t)
@@ -192,13 +192,13 @@ def _resolve_line(
     for name, value in line.overrides:
         attr = catalog.attribute(fold(name))
         if attr is None:
-            raise EsfError(f"unknown attribute {name!r}", n)
+            raise EsfCatalogError(f"unknown attribute {name!r}", n)
         if attr.id in seen:
-            raise EsfError(f"attribute {attr.name!r} is overridden twice", n)
+            raise EsfRuleError(f"attribute {attr.name!r} is overridden twice", n)
         seen.add(attr.id)
         number = float(value)
         if not math.isfinite(number):
-            raise EsfError(f"value {value!r} is out of range", n)
+            raise EsfRuleError(f"value {value!r} is out of range", n)
         item.overrides.append((attr, number))
 
     return item
@@ -226,7 +226,7 @@ def _check_cycles(fits: list[Fit]) -> None:
                 done.add(fit)
                 continue
             if ref in path:
-                raise EsfError("a fit cannot contain itself", item.line.number)
+                raise EsfRuleError("a fit cannot contain itself", item.line.number)
             if ref not in done:
                 path.add(ref)
                 stack.append((ref, _references(ref)))
@@ -244,7 +244,7 @@ def _layout(items: list[Item | EmptySlot]) -> list[Run]:
         if index is None:
             continue
         if index in pinned:
-            raise EsfError(f"slot {index} is pinned twice", item.line.number)
+            raise EsfRuleError(f"slot {index} is pinned twice", item.line.number)
         pinned[index] = item
 
     pins = sorted(pinned)
@@ -289,7 +289,7 @@ def resolve(blocks: list[FitBlock], catalog: Catalog) -> list[Fit]:
             if not isinstance(item, Item) or item.place not in PLUGGED:
                 continue
             if item.type.id in plugged:
-                raise EsfError(f"{item.type.name!r} is plugged in twice", item.line.number)
+                raise EsfRuleError(f"{item.type.name!r} is plugged in twice", item.line.number)
             plugged.add(item.type.id)
     _check_cycles(fits)
     for fit in fits:
