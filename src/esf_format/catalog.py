@@ -75,6 +75,14 @@ class Kind(StrEnum):
     OTHER = "other"
     """Anything else, like ore or a module without a slot. It goes in the cargo."""
 
+    @property
+    def can_be_hull(self) -> bool:
+        """Whether a type of this kind can be the `EsfFit.hull` of a fit.
+
+        True for `HULL` and `CONTAINER` only.
+        """
+        return self in (Kind.HULL, Kind.CONTAINER)
+
 
 @dataclass(frozen=True)
 class TypeRecord:

@@ -8,6 +8,7 @@ from esf_format import (
     Entry,
     EsfError,
     EsfFit,
+    Kind,
     Location,
     State,
     from_base64url,
@@ -66,6 +67,10 @@ def test_save_canonical():
         "\n"
         "100x Republic Fleet EMP S\n"
     )
+
+
+def test_only_hulls_and_containers_can_be_hulls():
+    assert [k for k in Kind if k.can_be_hull] == [Kind.HULL, Kind.CONTAINER]
 
 
 def test_load_canonical():
