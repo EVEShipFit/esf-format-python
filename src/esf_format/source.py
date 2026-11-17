@@ -2,8 +2,8 @@
 
 import math
 
-from .canonical import number, quote, quote_type
-from .catalog import Catalog
+from .canonical import number, quote, quote_type, type_ref
+from .catalog import Catalog, TypeRecord
 from .errors import EsfError
 from .model import Entry, EsfFit
 from .resolve import EmptySlot, Fit
@@ -16,11 +16,19 @@ def _name(text: str) -> str:
     return quote(text)
 
 
-def _type_name(catalog: Catalog, type_id: int, what: str) -> str:
+def _type(catalog: Catalog, type_id: int, what: str) -> TypeRecord:
     t = catalog.type_by_id(type_id)
     if t is None:
         raise EsfError(f"unknown {what} type ID {type_id}")
-    return quote_type(t.name)
+    return t
+
+
+def _type_name(catalog: Catalog, type_id: int, what: str) -> str:
+    return quote_type(_type(catalog, type_id, what).name)
+
+
+def _type_ref(catalog: Catalog, type_id: int, what: str) -> str:
+    return type_ref(catalog, _type(catalog, type_id, what))
 
 
 def _number(value: float) -> str:
@@ -51,12 +59,12 @@ def _entry(e: Entry, catalog: Catalog) -> str:
     parts = []
     if e.count is not None:
         parts.append(f"{e.count}x")
-    parts.append(_type_name(catalog, e.type, "item") if e.type is not None else "-")
+    parts.append(_type_ref(catalog, e.type, "item") if e.type is not None else "-")
     if e.fit_name:
         parts.append(_name(e.fit_name))
     if e.charge is not None:
         count = f"{e.charge_count}x " if e.charge_count is not None else ""
-        parts.append(f":{count}{_type_name(catalog, e.charge, 'charge')}")
+        parts.append(f":{count}{_type_ref(catalog, e.charge, 'charge')}")
     if e.mutaplasmid is not None:
         parts.append("+" + _type_name(catalog, e.mutaplasmid, "mutaplasmid"))
     if e.overrides:
@@ -75,7 +83,7 @@ def _entry(e: Entry, catalog: Catalog) -> str:
 
 
 def _hull(fit: EsfFit, catalog: Catalog) -> str:
-    hull = [_type_name(catalog, fit.hull, "hull") if fit.hull is not None else "-"]
+    hull = [_type_ref(catalog, fit.hull, "hull") if fit.hull is not None else "-"]
     if fit.name:
         hull.append(_name(fit.name))
     if fit.mode is not None:

@@ -11,7 +11,7 @@ from .catalog import AttributeRecord, Catalog, Kind, MutaplasmidRecord, TypeReco
 from .errors import EsfError
 from .model import Location
 from .names import fold, is_word_prefix
-from .text import PINNABLE, RACKS, STORED, TUBE, EmptyLine, FitBlock, ItemLine
+from .text import PINNABLE, RACKS, STORED, TUBE, EmptyLine, FitBlock, ItemLine, TypeRef
 
 DRONES = "drones"
 IMPLANTS = "implants"
@@ -86,10 +86,17 @@ def mode_name(hull: TypeRecord, mode: TypeRecord) -> str:
     return mode.name[len(hull.name) :].lstrip(" ")
 
 
-def _type(catalog: Catalog, name: str, line: int) -> TypeRecord:
-    t = catalog.type(fold(name))
+def _type(catalog: Catalog, ref: TypeRef, line: int) -> TypeRecord:
+    if ref.id is not None:
+        t = catalog.type_by_id(ref.id)
+        if t is None:
+            raise EsfError(f"unknown type ID #{ref.id}", line)
+        if fold(t.name) != fold(ref.name):
+            raise EsfError(f"type ID #{ref.id} is {t.name!r}, not {ref.name!r}", line)
+        return t
+    t = catalog.type(fold(ref.name))
     if t is None:
-        raise EsfError(f"unknown type {name!r}", line)
+        raise EsfError(f"unknown type {ref.name!r}", line)
     return t
 
 
@@ -135,7 +142,7 @@ def _resolve_line(
             raise EsfError("a fit without a ship has no slots to keep empty", n)
         return EmptySlot(line)
 
-    t = _type(catalog, line.name, n)
+    t = _type(catalog, line.type, n)
     kind = t.kind
     if kind == Kind.MODE:
         raise EsfError("a tactical mode is only written on the hull line", n)

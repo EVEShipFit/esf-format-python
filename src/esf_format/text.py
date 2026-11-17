@@ -2,7 +2,7 @@
 
 import re
 from dataclasses import dataclass, field
-from typing import NoReturn
+from typing import NamedTuple, NoReturn
 
 from .errors import EsfError
 
@@ -36,11 +36,18 @@ STORED = ("cargo", "bay", *HOLDS)
 UINT32_MAX = 0xFFFFFFFF
 
 _COUNT = re.compile(r"[0-9]+x")
+_TYPE_ID = re.compile(r"#([0-9]+)")
+_NAME_WITH_ID = re.compile(r"(.*[^ ])#([0-9]+)")
 _QUOTED = re.compile(r'"((?:[^"]|"")*+)"')
 _HEADER = re.compile(r" *%([a-z][a-z0-9-]*)/([0-9]+) *")
 _STATE = re.compile(r"!(off|on|heat)")
 _LOCATION = re.compile(r"@([a-z]+)([0-9]*)")
 _OVERRIDE = re.compile(r"([A-Za-z][A-Za-z0-9]*) +(-?[0-9]+(?:\.[0-9]+)?)")
+
+
+class TypeRef(NamedTuple):
+    name: str
+    id: int | None = None
 
 
 @dataclass
@@ -54,10 +61,10 @@ class EmptyLine:
 @dataclass
 class ItemLine:
     number: int
-    name: str
+    type: TypeRef
     count: int | None = None
     fit_name: str | None = None
-    charge: str | None = None
+    charge: TypeRef | None = None
     charge_count: int | None = None
     mutaplasmid: str | None = None
     overrides: list[tuple[str, str]] = field(default_factory=list)
@@ -70,7 +77,7 @@ class ItemLine:
 class FitBlock:
     number: int
     hull_line: int
-    hull: str | None = None
+    hull: TypeRef | None = None
     fit_name: str | None = None
     mode: str | None = None
     lines: list[EmptyLine | ItemLine] = field(default_factory=list)
@@ -78,6 +85,10 @@ class FitBlock:
 
 def is_count(token: str) -> bool:
     return _COUNT.fullmatch(token) is not None
+
+
+def ends_in_type_id(name: str) -> bool:
+    return _NAME_WITH_ID.fullmatch(name) is not None
 
 
 class _Cursor:
@@ -169,6 +180,27 @@ class _Cursor:
                 return " ".join(words)
             words.append(self.word())
 
+    def type_ref(self) -> TypeRef:
+        """A type name, and the type ID after it if there is one (§6.13)."""
+        if self.peek() == '"':
+            name = self.quoted()
+            match = _TYPE_ID.match(self.s, self.i)
+            if not match:
+                return TypeRef(name)
+            self.i = match.end()
+            return TypeRef(name, self._type_id(match.group(1)))
+        name = self.type_name()
+        match = _NAME_WITH_ID.fullmatch(name)
+        if not match:
+            return TypeRef(name)
+        return TypeRef(match.group(1), self._type_id(match.group(2)))
+
+    def _type_id(self, digits: str) -> int:
+        digits = digits.lstrip("0") or "0"
+        if len(digits) > 10 or int(digits) > UINT32_MAX:
+            self.error("a type ID is too large")
+        return int(digits)
+
     def location(self) -> tuple[str, int | None]:
         match = _LOCATION.match(self.s, self.i)
         if not match:
@@ -218,7 +250,7 @@ def _hull(header: int, cur: _Cursor) -> FitBlock:
 
     if is_count(cur.token()):
         cur.error("the hull line cannot have a count")
-    block.hull = cur.type_name()
+    block.hull = cur.type_ref()
     more = cur.next_element()
     if more and cur.peek() == '"':
         block.fit_name = cur.quoted()
@@ -248,7 +280,7 @@ def _entry(cur: _Cursor) -> EmptyLine | ItemLine:
         cur.finish()
         return EmptyLine(cur.number, rack, count, index)
 
-    line = ItemLine(cur.number, cur.type_name(), count)
+    line = ItemLine(cur.number, cur.type_ref(), count)
     more = cur.next_element()
 
     if more and cur.peek() == '"':
@@ -268,7 +300,7 @@ def _entry(cur: _Cursor) -> EmptyLine | ItemLine:
         if c == ":" and stage < 1:
             cur.i += 1
             line.charge_count = cur.count()
-            line.charge = cur.type_name()
+            line.charge = cur.type_ref()
             stage = 1
         elif c == "+" and stage < 2:
             cur.i += 1

@@ -18,7 +18,7 @@ from .resolve import (
     default_place,
     mode_name,
 )
-from .text import HOLDS, PINNABLE, RACKS, SIGILS, TUBE, UINT32_MAX, is_count
+from .text import HOLDS, PINNABLE, RACKS, SIGILS, TUBE, UINT32_MAX, ends_in_type_id, is_count
 
 GROUPS = (*RACKS, DRONES, TUBE, Location.CARGO, *HOLDS, *PLUGGED)
 
@@ -26,10 +26,12 @@ GROUPS = (*RACKS, DRONES, TUBE, Location.CARGO, *HOLDS, *PLUGGED)
 @dataclass
 class CanonLine:
     type: TypeRecord | None
+    type_text: str = "-"
     count: int | None = None
     fit_name: str | None = None
     charge: TypeRecord | None = None
     charge_count: int | None = None
+    charge_text: str | None = None
     mutaplasmid: MutaplasmidRecord | None = None
     mutaplasmid_name: str | None = None
     overrides: list[tuple[AttributeRecord, float]] = field(default_factory=list)
@@ -37,12 +39,12 @@ class CanonLine:
     location: str | None = None
 
     def body(self) -> str:
-        parts = [quote_type(self.type.name) if self.type else "-"]
+        parts = [self.type_text]
         if self.fit_name is not None:
             parts.append(quote(self.fit_name))
-        if self.charge is not None:
+        if self.charge_text is not None:
             count = "" if self.charge_count is None else f"{self.charge_count}x "
-            parts.append(f":{count}{quote_type(self.charge.name)}")
+            parts.append(f":{count}{self.charge_text}")
         if self.mutaplasmid_name is not None:
             parts.append(f"+{quote_type(self.mutaplasmid_name)}")
         if self.overrides:
@@ -63,6 +65,7 @@ class CanonLine:
 @dataclass
 class CanonFit:
     hull: TypeRecord | None
+    hull_text: str
     name: str | None
     mode: TypeRecord | None
     mode_text: str | None
@@ -73,7 +76,7 @@ class CanonFit:
         return [line for group in self.groups for line in group]
 
     def text(self) -> str:
-        hull = [quote_type(self.hull.name) if self.hull else "-"]
+        hull = [self.hull_text]
         if self.name is not None:
             hull.append(quote(self.name))
         if self.mode_text is not None:
@@ -93,12 +96,22 @@ def needs_quotes(name: str) -> bool:
     return (
         words[0][:1] in ("-", "%", "")
         or is_count(words[0])
+        or ends_in_type_id(name)
         or any(w[:1] in SIGILS or w == "" for w in words)
     )
 
 
 def quote_type(name: str) -> str:
     return quote(name) if needs_quotes(name) else name
+
+
+def type_ref(catalog: Catalog, t: TypeRecord) -> str:
+    """A type as text: its name, and its ID where the name resolves to another type (§6.13)."""
+    name = quote_type(t.name)
+    found = catalog.type(fold(t.name))
+    if found is not None and found.id == t.id:
+        return name
+    return f"{name}#{t.id}"
 
 
 def number(value: float) -> str:
@@ -120,13 +133,14 @@ def _default_state(item: Item) -> str | None:
 
 def _line(item: Item, fit: Fit, catalog: Catalog) -> CanonLine:
     line = item.line
-    out = CanonLine(item.type)
+    out = CanonLine(item.type, type_ref(catalog, item.type))
 
     if item.reference is not None:
         out.fit_name = item.reference.name
 
     if item.charge is not None:
         out.charge = item.charge
+        out.charge_text = type_ref(catalog, item.charge)
         full = cat.full_load(item.type, item.charge)
         if line.charge_count is not None and line.charge_count != full:
             out.charge_count = line.charge_count
@@ -253,7 +267,8 @@ def canonical_fit(fit: Fit, catalog: Catalog) -> CanonFit:
         others.remove(own)
         mode_text = shortest_unique(own, others)
 
-    return CanonFit(fit.hull, fit.name, fit.mode, mode_text, chunks)
+    hull_text = type_ref(catalog, fit.hull) if fit.hull is not None else "-"
+    return CanonFit(fit.hull, hull_text, fit.name, fit.mode, mode_text, chunks)
 
 
 def render(fits: list[CanonFit]) -> str:
