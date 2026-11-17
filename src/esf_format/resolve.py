@@ -114,7 +114,7 @@ def _resolve_hull(block: FitBlock, catalog: Catalog) -> Fit:
         return Fit(block, None, None, True)
 
     hull = _type(catalog, block.hull, block.hull_line)
-    if hull.kind not in (Kind.HULL, Kind.CONTAINER):
+    if not hull.kind.can_be_hull:
         raise EsfError(f"{hull.name!r} is not a ship, structure or container", block.hull_line)
 
     mode = None
@@ -150,7 +150,7 @@ def _resolve_line(
     item = Item(line, t, default_place(kind, fit.cargo_only))
 
     if line.fit_name is not None:
-        if kind not in (Kind.HULL, Kind.CONTAINER):
+        if not kind.can_be_hull:
             raise EsfError(f"{t.name!r} cannot take a fit name", n)
         matches = named.get((t.id, fold(line.fit_name)), [])
         if len(matches) != 1:
