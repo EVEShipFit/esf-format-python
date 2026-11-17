@@ -177,7 +177,7 @@ class Entry:
     """
 
     overrides: dict[int, float] = field(default_factory=dict)
-    """Attribute values that replace the type's own, by attribute ID.
+    """Dogma attribute values that replace the type's own, by attribute ID.
 
     For example {20: 524.0} sets speedFactor (20) to 524.0. Each value is the new base
     value, not a change on top of it. Attributes not listed keep the type's value.

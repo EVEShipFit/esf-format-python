@@ -1,4 +1,4 @@
-"""What esf/1 needs to know about types and attributes (SPEC §5, §6)."""
+"""What esf/1 needs to know about types and dogma attributes (SPEC §5, §6)."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -91,7 +91,7 @@ class TypeRecord:
     With the SDE, most fields come from `types.jsonl`. `kind`, `active` and `squadron_size`
     also need `groups.jsonl`, `typeDogma.jsonl` and `dogmaEffects.jsonl`, through the
     helpers in `esf_format.sde`. Include every type in `types.jsonl`. A type with no row
-    in `typeDogma.jsonl` has no effects and no attributes: give the helpers an empty
+    in `typeDogma.jsonl` has no effects and no dogma attributes: give the helpers an empty
     list or dict.
     """
 
@@ -126,7 +126,7 @@ class TypeRecord:
     squadron_size: int | None = None
     """For a fighter, how many make up a full squadron. None for anything else.
 
-    In the SDE this is the attribute `fighterSquadronMaxSize`;
+    In the SDE this is the dogma attribute `fighterSquadronMaxSize`;
     `esf_format.sde.squadron_size()` reads it for you.
     """
 
@@ -159,7 +159,7 @@ class MutaplasmidRecord:
     """The mutaplasmid's own type: the type whose ID is the entry's `_key`."""
 
     rolls: tuple[tuple[int, float], ...]
-    """The attributes the mutaplasmid changes, each with the base type's value before the change.
+    """The dogma attributes the mutaplasmid changes, each with the base type's unchanged value.
 
     Each pair is an attribute ID and a value. The attribute IDs are the `_key` of each
     item in the entry's `attributeIDs`; its `min` and `max` are not needed. Each value is
@@ -204,7 +204,7 @@ class Catalog(Protocol):
         ...
 
     def attribute(self, folded_name: str, /) -> AttributeRecord | None:
-        """Finds an attribute by its name, like "speedfactor".
+        """Finds a dogma attribute by its name, like "speedfactor".
 
         Used to read attribute overrides, like the rolls on an abyssal module.
 
@@ -218,7 +218,7 @@ class Catalog(Protocol):
         ...
 
     def attribute_by_id(self, attribute_id: int, /) -> AttributeRecord | None:
-        """Finds an attribute by its ID.
+        """Finds a dogma attribute by its ID.
 
         Used to write attribute overrides, like the rolls on an abyssal module.
 
