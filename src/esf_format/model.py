@@ -229,3 +229,57 @@ class EsfFit:
 
     entries: list[Entry] = field(default_factory=list)
     """The lines of the fit: items, empty slots and fits it carries."""
+
+
+@dataclass
+class TextExtra:
+    """A text block that is not a fit, like a `%fleet/1` block.
+
+    A reader skips such a block (esf/1 spec §6.11). `load_document()` hands it back.
+    """
+
+    name: str
+    """The name in the block's header, like "fleet" for `%fleet/1`."""
+
+    version: int
+    """The version in the block's header, like 1 for `%fleet/1`.
+
+    A version above 4294967295 makes the document invalid.
+    """
+
+    text: str
+    """The block as written, after its header line, up to the next header or the end.
+
+    It keeps the line endings, CRLF or LF, and any blank lines at the end. It is empty
+    when nothing follows the header line before the next header or the end.
+    """
+
+
+@dataclass
+class BinaryExtra:
+    """A field of a binary document that is not a fit.
+
+    A reader skips a `Document` field it does not know (esf/1 spec §10.2).
+    `load_document()` hands back the length-delimited ones (wire type 2).
+    """
+
+    field: int
+    """The field number, 2 or more."""
+
+    bytes: bytes
+    """The field's content, without its key and length."""
+
+
+Extra = TextExtra | BinaryExtra
+"""Data in a document that is not a fit."""
+
+
+@dataclass
+class Document:
+    """A document as `load_document()` reads it: its fits, and everything else."""
+
+    fits: list[EsfFit]
+    """The fits, in canonical form, the same as `load()` returns."""
+
+    extra: list[Extra] = field(default_factory=list)
+    """The blocks or binary fields that are not fits, in the order of the document."""

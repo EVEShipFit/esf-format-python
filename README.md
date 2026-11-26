@@ -54,6 +54,34 @@ Catch a subclass to handle one kind of error:
 | `EsfCatalogError` | The catalog does not know a name or ID, or a name matches more than one type. |
 | `EsfRuleError` | The fit breaks a rule, like a module in the wrong rack. |
 
+## Other data in a document
+
+A document can hold more than fits. Other formats, like a fleet, add their own
+text blocks, such as `%fleet/1`, or their own binary fields. `load()` skips
+them. `load_document()` reads the fits the same way, and also hands back what
+it skipped:
+
+```python
+doc = esf_format.load_document(data, catalog)
+doc.fits  # the same as load()
+for extra in doc.extra:  # in document order
+    if isinstance(extra, esf_format.TextExtra):
+        extra.name, extra.version, extra.text  # "fleet", 1, the lines after "%fleet/1"
+    else:  # esf_format.BinaryExtra
+        extra.field, extra.bytes  # a binary field number, 2 or more, and its content
+```
+
+`text` is the block exactly as written, after its header line. Of the binary
+fields, only length-delimited ones come back.
+
+To store data next to fits, add it to the end of what `save()` or
+`save_binary()` returns. Two documents joined are one document:
+
+```python
+text = esf_format.save(fits, catalog) + "%fleet/1\n" + fleet_text
+data = esf_format.save_binary(fits, catalog) + esf_format.binary_field(2, fleet_bytes)
+```
+
 ## Fits
 
 An `EsfFit` is one fit: `hull`, `name`, tactical `mode` and its `entries`.
@@ -142,7 +170,7 @@ you use a type as one.
 The test cases live in [esf-format](https://github.com/EVEShipFit/esf-format):
 
 ```
-git clone --branch v1.0 https://github.com/EVEShipFit/esf-format
+git clone --branch v1.3 https://github.com/EVEShipFit/esf-format
 uv sync
 uv run --project esf-format/tools esf-test -- .venv/bin/python tests/program.py
 uv run pytest

@@ -4,7 +4,7 @@ import struct
 from typing import TypeVar
 
 from . import wire
-from .model import Entry, EsfFit, Location, State
+from .model import BinaryExtra, Entry, EsfFit, Location, State
 
 T = TypeVar("T")
 from .errors import EsfFormatError, EsfRuleError
@@ -173,14 +173,17 @@ def _decode_fit(data: bytes) -> EsfFit:
     return fit
 
 
-def decode(data: bytes) -> list[EsfFit]:
+def decode(data: bytes) -> tuple[list[EsfFit], list[BinaryExtra]]:
     fits = []
+    extras = []
     for tag, wire_type, value in wire.fields(data):
         if tag != 1:
+            if wire_type == wire.LEN:
+                extras.append(BinaryExtra(tag, value))
             continue
         if wire_type != wire.LEN:
             raise EsfFormatError("binary: Document.fits has the wrong wire type")
         fits.append(_decode_fit(value))
     if not fits:
         raise EsfFormatError("binary: a document holds at least one fit")
-    return fits
+    return fits, extras

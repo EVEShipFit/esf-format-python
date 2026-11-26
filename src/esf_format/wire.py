@@ -8,6 +8,7 @@ from .errors import EsfFormatError
 
 VARINT, I64, LEN, SGROUP, EGROUP, I32 = range(6)
 U64 = (1 << 64) - 1
+MAX_FIELD = (1 << 29) - 1
 
 
 def varint(value: int) -> bytes:
