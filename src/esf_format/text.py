@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import NamedTuple, NoReturn
 
 from .errors import EsfFormatError
+from .model import TextExtra
 
 SIGILS = frozenset(':+{!@/"')
 RACKS = ("sub", "high", "mid", "low", "rig", "svc")
@@ -334,8 +335,8 @@ def _is_blank(text: str) -> bool:
     return stripped == "" or stripped.startswith("//")
 
 
-def parse(data: bytes) -> list[FitBlock]:
-    """Split a text document into fits; other blocks are skipped."""
+def parse(data: bytes, keep: bool = False) -> tuple[list[FitBlock], list[TextExtra]]:
+    """Split a text document into fits, and the other blocks if `keep`."""
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as e:
@@ -346,10 +347,14 @@ def parse(data: bytes) -> list[FitBlock]:
         lines.pop()
 
     fits: list[FitBlock] = []
+    extras: list[TextExtra] = []
+    extra_start: int | None = None
+    start = 0
     current: FitBlock | None = None
     header: int | None = None  # an esf header still waiting for its hull line
     in_block = False
     for number, raw in enumerate(lines, 1):
+        line_start, start = start, start + len(raw) + 1
         raw = raw.removesuffix("\r")
         if "\r" in raw:
             raise EsfFormatError("a CR must be followed by an LF", number)
@@ -360,12 +365,21 @@ def parse(data: bytes) -> list[FitBlock]:
                 raise EsfFormatError("malformed header", number)
             if header is not None:
                 raise EsfFormatError("a fit needs a hull line", header)
+            if extra_start is not None:
+                extras[-1].text = text[extra_start:line_start]
             in_block = True
             current = None
+            extra_start = None
             if match.group(1) == "esf":
                 if match.group(2) != "1":
                     raise EsfFormatError(f"unsupported version esf/{match.group(2)}", number)
                 header = number
+            elif keep:
+                version = match.group(2).lstrip("0") or "0"
+                if len(version) > 10 or int(version) > UINT32_MAX:
+                    raise EsfFormatError("a block version is too large", number)
+                extras.append(TextExtra(match.group(1), int(version), ""))
+                extra_start = min(start, len(text))
             continue
 
         if not in_block:
@@ -385,4 +399,6 @@ def parse(data: bytes) -> list[FitBlock]:
         raise EsfFormatError("a fit needs a hull line", header)
     if not fits:
         raise EsfFormatError("a document holds at least one fit")
-    return fits
+    if extra_start is not None:
+        extras[-1].text = text[extra_start:]
+    return fits, extras

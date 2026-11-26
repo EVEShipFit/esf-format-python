@@ -3,7 +3,7 @@
 import base64
 import re
 
-from . import binary, canonical, esi, resolve, sde, source, text
+from . import binary, canonical, esi, resolve, sde, source, text, wire
 from .canonical import CanonFit
 from .catalog import (
     AttributeRecord,
@@ -15,30 +15,36 @@ from .catalog import (
     TypeRecord,
 )
 from .errors import EsfCatalogError, EsfError, EsfFormatError, EsfRuleError
-from .model import Entry, EsfFit, Location, State
+from .model import BinaryExtra, Document, Entry, EsfFit, Extra, Location, State, TextExtra
 from .names import fold
 
 __all__ = [
     "AttributeRecord",
+    "BinaryExtra",
     "Catalog",
+    "Document",
     "Entry",
     "EsfCatalogError",
     "EsfError",
     "EsfFit",
     "EsfFormatError",
     "EsfRuleError",
+    "Extra",
     "Kind",
     "Location",
     "ModeCatalog",
     "MutaplasmidCatalog",
     "MutaplasmidRecord",
     "State",
+    "TextExtra",
     "TypeRecord",
+    "binary_field",
     "esi",
     "fold",
     "from_base64url",
     "is_text",
     "load",
+    "load_document",
     "save",
     "save_binary",
     "sde",
@@ -65,7 +71,7 @@ def _canonical(
 def _checked(fits: list[EsfFit], catalog: Catalog) -> list[CanonFit]:
     data, where = source.source(fits, catalog)
     try:
-        return _canonical(text.parse(data), catalog, fits)
+        return _canonical(text.parse(data)[0], catalog, fits)
     except EsfError as e:
         if e.line is None:
             raise
@@ -73,17 +79,38 @@ def _checked(fits: list[EsfFit], catalog: Catalog) -> list[CanonFit]:
         raise e._at(fit, entry) from None
 
 
-def load(data: bytes | str, catalog: Catalog) -> list[EsfFit]:
-    """Read a text or binary document, in canonical form."""
+def _load(data: bytes | str, catalog: Catalog, keep: bool) -> Document:
     if isinstance(data, str):
         data = data.encode("utf-8", "surrogatepass")
     if not data:
         raise EsfFormatError("the document is empty")
+    extra: list[Extra] = []
     if is_text(data):
-        fits = _canonical(text.parse(data), catalog)
+        blocks, text_extra = text.parse(data, keep)
+        fits = _canonical(blocks, catalog)
+        extra += text_extra
     else:
-        fits = _checked(binary.decode(data), catalog)
-    return [canonical.to_model(f) for f in fits]
+        decoded, binary_extra = binary.decode(data)
+        fits = _checked(decoded, catalog)
+        extra += binary_extra
+    return Document([canonical.to_model(f) for f in fits], extra)
+
+
+def load(data: bytes | str, catalog: Catalog) -> list[EsfFit]:
+    """Read a text or binary document, in canonical form."""
+    return _load(data, catalog, False).fits
+
+
+def load_document(data: bytes | str, catalog: Catalog) -> Document:
+    """Read a text or binary document, and keep what is not a fit.
+
+    The fits are the same as `load()` returns. A reader skips text blocks and binary
+    `Document` fields that are not fits; this hands them back in `Document.extra`, in
+    the order of the document. Of the binary fields, only length-delimited ones come
+    back. It raises the same errors as `load()`, and one more: a text block whose
+    version is above 4294967295 raises `EsfFormatError`, where `load()` skips it.
+    """
+    return _load(data, catalog, True)
 
 
 def save(fits: list[EsfFit], catalog: Catalog) -> str:
@@ -94,6 +121,19 @@ def save(fits: list[EsfFit], catalog: Catalog) -> str:
 def save_binary(fits: list[EsfFit], catalog: Catalog) -> bytes:
     """Write fits in the binary form (§10)."""
     return binary.encode([canonical.to_model(f) for f in _checked(fits, catalog)])
+
+
+def binary_field(field: int, data: bytes) -> bytes:
+    """A length-delimited `Document` field, to append to the output of `save_binary()`.
+
+    Two binary documents joined are one document, so adding this to the end of
+    `save_binary()` output stores `data` next to the fits. `load_document()` hands it
+    back as a `BinaryExtra`. `field` is the field number: 2 or more, as 1 holds the
+    fits, and at most 536870911. Anything else raises ValueError.
+    """
+    if not 2 <= field <= wire.MAX_FIELD:
+        raise ValueError(f"field must be from 2 to {wire.MAX_FIELD}, not {field}")
+    return wire.record(field, bytes(memoryview(data)))
 
 
 def to_base64url(data: bytes) -> str:
