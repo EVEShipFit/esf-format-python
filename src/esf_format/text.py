@@ -335,8 +335,8 @@ def _is_blank(text: str) -> bool:
     return stripped == "" or stripped.startswith("//")
 
 
-def parse(data: bytes) -> tuple[list[FitBlock], list[TextExtra]]:
-    """Split a text document into fits and the other blocks."""
+def parse(data: bytes, keep: bool = False) -> tuple[list[FitBlock], list[TextExtra]]:
+    """Split a text document into fits, and the other blocks if `keep`."""
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError as e:
@@ -374,7 +374,7 @@ def parse(data: bytes) -> tuple[list[FitBlock], list[TextExtra]]:
                 if match.group(2) != "1":
                     raise EsfFormatError(f"unsupported version esf/{match.group(2)}", number)
                 header = number
-            else:
+            elif keep:
                 version = match.group(2).lstrip("0") or "0"
                 if len(version) > 10 or int(version) > UINT32_MAX:
                     raise EsfFormatError("a block version is too large", number)

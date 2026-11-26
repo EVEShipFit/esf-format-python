@@ -170,7 +170,7 @@ you use a type as one.
 The test cases live in [esf-format](https://github.com/EVEShipFit/esf-format):
 
 ```
-git clone --branch v1.3 https://github.com/EVEShipFit/esf-format
+git clone --branch load-document https://github.com/EVEShipFit/esf-format
 uv sync
 uv run --project esf-format/tools esf-test -- .venv/bin/python tests/program.py
 uv run pytest

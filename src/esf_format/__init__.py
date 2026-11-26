@@ -79,9 +79,26 @@ def _checked(fits: list[EsfFit], catalog: Catalog) -> list[CanonFit]:
         raise e._at(fit, entry) from None
 
 
+def _load(data: bytes | str, catalog: Catalog, keep: bool) -> Document:
+    if isinstance(data, str):
+        data = data.encode("utf-8", "surrogatepass")
+    if not data:
+        raise EsfFormatError("the document is empty")
+    extra: list[Extra] = []
+    if is_text(data):
+        blocks, text_extra = text.parse(data, keep)
+        fits = _canonical(blocks, catalog)
+        extra += text_extra
+    else:
+        decoded, binary_extra = binary.decode(data)
+        fits = _checked(decoded, catalog)
+        extra += binary_extra
+    return Document([canonical.to_model(f) for f in fits], extra)
+
+
 def load(data: bytes | str, catalog: Catalog) -> list[EsfFit]:
     """Read a text or binary document, in canonical form."""
-    return load_document(data, catalog).fits
+    return _load(data, catalog, False).fits
 
 
 def load_document(data: bytes | str, catalog: Catalog) -> Document:
@@ -90,22 +107,10 @@ def load_document(data: bytes | str, catalog: Catalog) -> Document:
     The fits are the same as `load()` returns. A reader skips text blocks and binary
     `Document` fields that are not fits; this hands them back in `Document.extra`, in
     the order of the document. Of the binary fields, only length-delimited ones come
-    back. It raises the same errors as `load()`.
+    back. It raises the same errors as `load()`, and one more: a text block whose
+    version is above 4294967295 raises `EsfFormatError`, where `load()` skips it.
     """
-    if isinstance(data, str):
-        data = data.encode("utf-8", "surrogatepass")
-    if not data:
-        raise EsfFormatError("the document is empty")
-    extra: list[Extra] = []
-    if is_text(data):
-        blocks, text_extra = text.parse(data)
-        fits = _canonical(blocks, catalog)
-        extra += text_extra
-    else:
-        decoded, binary_extra = binary.decode(data)
-        fits = _checked(decoded, catalog)
-        extra += binary_extra
-    return Document([canonical.to_model(f) for f in fits], extra)
+    return _load(data, catalog, True)
 
 
 def save(fits: list[EsfFit], catalog: Catalog) -> str:

@@ -93,6 +93,13 @@ def test_text_extra_version_too_large(version: str) -> None:
         load_document(f"%esf/1\nRifter\n%x/{version}\n", CATALOG)
 
 
+def test_load_skips_version_too_large() -> None:
+    data = "%esf/1\nRifter\n%fleet/99999999999\n"
+    assert load(data, CATALOG) == [EsfFit(RIFTER)]
+    with pytest.raises(EsfFormatError):
+        load_document(data, CATALOG)
+
+
 def test_text_extra_version_max() -> None:
     document = load_document("%esf/1\nRifter\n%x/0004294967295\n", CATALOG)
     assert document.extra == [TextExtra("x", 4294967295, "")]

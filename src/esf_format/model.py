@@ -244,7 +244,7 @@ class TextExtra:
     version: int
     """The version in the block's header, like 1 for `%fleet/1`.
 
-    A version above 4294967295 makes the document invalid.
+    It is at most 4294967295; `load_document()` rejects a block with a larger one.
     """
 
     text: str
